@@ -1,0 +1,11 @@
+Proof of concept of a cityrail timetable displayed in the same format as
+  Edward Tutfe's Japanese war-era train timetable in his "Visual Display
+  of Quantatitive Information" book. Data is loaded from the TransXChange
+  format files provided by CityRail.
+
+  Requires lxml library.
+
+  Perform a data load with the tool under setup before running the script
+  under src. Once run, load the canvas.html file that's produced. Tested
+  in Safari v4 but should work in any browser with a working HTML canvas
+  implementation.
