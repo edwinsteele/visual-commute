@@ -1,6 +1,6 @@
 from lxml import etree
 from copy import deepcopy
-import datetime, sqlite3
+import datetime, os, sqlite3
 
 PATH_TO_DATA="../data"
 
