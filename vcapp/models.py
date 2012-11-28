@@ -17,7 +17,7 @@ class Station(models.Model):
     lat = models.FloatField()
 
     def __unicode__(self):
-        return u"%s - lon: %s (E-W) lat: %s (N-S)" % \
+        return u"%s - lon: %.3f (E-W) lat: %.3f (N-S)" % \
                (self.station_name, self.lon, self.lat)
 
     def short_name(self):
@@ -58,22 +58,24 @@ class Trip(models.Model):
     def __unicode__(self):
         return u"Trip (id:%s) from %s to %s, on line %s" % \
                (self.trip_id,
-                self.get_segments()[0].station,
-                self.get_segments()[-1].station,
+                self.get_segments()[0].departure_tripstop.station,
+                self.get_segments()[0].arrival_tripstop.station,
                 self.line.line_id)
 
     def get_segments(self):
-        return self.trip_set.all()
+        return self.segment_set.all()
 
     def get_trip_distance(self):
-        return sum([segment.distance() for segment in self.get_segments()])
+        return sum([segment.segment_length() for segment in self.get_segments()])
 
     # FIXME - Do we really need these methods to be in hours? why not just datetime.time?
     def get_start_hour(self):
         return self.get_segments()[0].departure_tripstop.departure_time.hour
 
     def get_end_hour(self):
-        return self.get_segments()[-1].arrival_tripstop.arrival_time.hour
+        # departure time of the arrival tripstop???
+        # FIXME - this is b0rked because querysets don't support negative indexing
+        return self.get_segments()[-1].arrival_tripstop.departure_time.hour
 
 
 class TripStop(models.Model):
@@ -90,7 +92,7 @@ class TripStop(models.Model):
     station = models.ForeignKey('Station')
 
     def __unicode__(self):
-        return u"%s" % self.id
+        return u"%s" % self.tripstop_id
 
 
 class Segment(models.Model):
@@ -131,11 +133,11 @@ class Segment(models.Model):
         return self.trip.line.line_id
 
     def get_departure_point_name(self):
-        return "%s on trip %s" % (self.departure_tripstop.station_id.station_name,
+        return "%s on trip %s" % (self.departure_tripstop.station.station_name,
             self.get_trip_id())
 
     def get_arrival_point_name(self):
-        return "%s on trip %s" % (self.arrival_tripstop.station_id.station_name,
+        return "%s on trip %s" % (self.arrival_tripstop.station.station_name,
             self.get_trip_id())
 
     def add_as_digraph_edge(self, dg, ignore_lines):
