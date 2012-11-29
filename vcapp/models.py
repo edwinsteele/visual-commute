@@ -9,6 +9,7 @@ The timetable itself is a collection of trips on a single Line (usually)
 
 from django.db import models
 import geometry
+import datetime as dt
 
 class Station(models.Model):
     station_id = models.IntegerField(primary_key=True)
@@ -63,6 +64,7 @@ class Trip(models.Model):
                 self.line.line_id)
 
     def get_segments(self):
+        # FIXME - we need to order the segments explicitly... order do we given we do the initial load?
         return self.segment_set.all()
 
     def get_trip_distance(self):
@@ -74,8 +76,7 @@ class Trip(models.Model):
 
     def get_end_hour(self):
         # departure time of the arrival tripstop???
-        # FIXME - this is b0rked because querysets don't support negative indexing
-        return self.get_segments()[-1].arrival_tripstop.departure_time.hour
+        return self.get_segments()[len(self.get_segments())-1].arrival_tripstop.departure_time.hour
 
 
 class TripStop(models.Model):
@@ -141,8 +142,26 @@ class Segment(models.Model):
             self.get_trip_id())
 
     def add_as_digraph_edge(self, dg, ignore_lines):
-        # TODO - implementation in the old class
-        pass
+        if ignore_lines:
+            dep_name = self.departure_tripstop.station.station_name
+            arv_name = self.arrival_tripstop.station.station_name
+        else:
+            dep_name = self.get_departure_point_name()
+            arv_name = self.get_arrival_point_name()
+
+        if dep_name not in dg:
+            dg.add_node(dep_name, {"tripId":self.tripId, "pist":self.departure_tripstop})
+        if arv_name not in dg:
+            dg.add_node(arv_name, {"tripId":self.tripId, "pist":self.arrival_tripstop})
+
+        dtdt = dt.datetime
+        duration_time_delta = \
+            dtdt.combine(dtdt.today(), self.arrival_tripstop.departure_time) - \
+            dtdt.combine(dtdt.today(), self.departure_tripstop.departure_time)
+        edge_weight = duration_time_delta.seconds/60
+        #print "Adding edge from '%s' to '%s' with weight %s" % (dep_name, arv_name, edge_weight)
+        dg.add_edge(dep_name, arv_name, weight=edge_weight)
+
 
     def segment_length(self):
         return self.departure_tripstop.station.distance_from(
