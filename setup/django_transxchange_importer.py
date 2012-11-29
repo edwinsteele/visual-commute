@@ -64,6 +64,7 @@ xp_lon = etree.XPath("//T:Place//T:Location//T:Longitude", namespaces=NSMAP)
 xp_lat = etree.XPath("//T:Place//T:Location//T:Latitude", namespaces=NSMAP)
 
 created_station_count = 0
+start_time = time.time()
 for elem in xp_stop_point(context):
     stop_point = deepcopy(elem)
     atco_code = int(xp_atco_code(stop_point)[0].text)
@@ -78,11 +79,12 @@ for elem in xp_stop_point(context):
 
     atco_stationcode_map[atco_code] = station
 
-print "Created %s stations" % (created_station_count,)
+print "Created %s stations in %.2f secs" % (created_station_count, time.time() - start_time)
 
 interchange_station_count = 0
 interchange_relationship_count = 0
 
+start_time = time.time()
 # Setup Interchange Stations
 for station in Station.objects.all():
     if station.station_name in interchange_station_map:
@@ -93,8 +95,8 @@ for station in Station.objects.all():
             interchange_relationship_count += 0
 
 
-print "Created %s interchange stations and %s relationships" % \
-    (interchange_station_count, interchange_relationship_count)
+print "Created %s interchange stations and %s relationships in %.2f secs" % \
+    (interchange_station_count, interchange_relationship_count, time.time() - start_time)
 
 # Journey Pattern Sections
 #  (which contain 1 or more Journey Pattern Timing Links)
@@ -106,6 +108,8 @@ xp_journey_pattern_timing_link = etree.XPath("//T:JourneyPatternTimingLink", nam
 
 journey_pattern_section_count = 0
 journey_pattern_timing_link_count = 0
+
+start_time = time.time()
 for elem in xp_journey_pattern_section(context):
     journey_pattern_section = deepcopy(elem)
     journey_pattern_section_id = elem.attrib["id"]
@@ -125,7 +129,10 @@ for elem in xp_journey_pattern_section(context):
     #print "JPS id: %s. From %s (%s) to %s (%s)" % \
     # (journey_pattern_sectionId, from_stop, atco_stop_map[from_stop][0], to_stop, atco_stop_map[to_stop][0])
 
-print "Found %s journey pattern timing links with %s sections" % (journey_pattern_timing_link_count, journey_pattern_section_count,)
+print "Found %s journey pattern timing links with %s sections in %.2f secs" % \
+      (journey_pattern_timing_link_count,
+       journey_pattern_section_count,
+       time.time() - start_time)
 
 # Vehicle Journey
 #  (which has a single Journey Pattern Section reference)
@@ -140,6 +147,7 @@ xp_service_ref = etree.XPath("//T:ServiceRef", namespaces=NSMAP)
 xp_dep_time = etree.XPath("//T:DepartureTime", namespaces=NSMAP)
 # Do I need the Direction element?
 
+start_time = time.time()
 vehicle_journey_count = 0
 for e in xp_vehicle_journey(context):
     vj = deepcopy(e)
@@ -151,7 +159,8 @@ for e in xp_vehicle_journey(context):
     vehicle_journey_map[vehicle_journey_id] = (service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time)
     vehicle_journey_count += 1
 
-print "Found %s vehicle journies" % (vehicle_journey_count,)
+print "Found %s vehicle journies in %.2f secs" % \
+      (vehicle_journey_count, time.time() - start_time)
 
 # Service
 #  (which contains a list of Journey Pattern Section references)
@@ -182,17 +191,23 @@ for e in xp_service(context):
         #  even though they're the same in the example file
         for vehicle_journey_ref in xp_journey_pattern(s):
             vehicle_journey_id = vehicle_journey_ref.attrib["id"]
-            service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time = vehicle_journey_map[vehicle_journey_id]
-            departure_timeDateTime = datetime.datetime.strptime(departure_time, "%H:%M:%S")
+            service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time = \
+                vehicle_journey_map[vehicle_journey_id]
+            departure_timeDateTime = datetime.datetime.strptime(
+                departure_time, "%H:%M:%S")
             # FIXME - we can't handle time comparisons when the system rolls
             #  over past midnight, so for the sake of testing, let's drop any
             #  trip that starts after 8pm
             if departure_timeDateTime.time() > datetime.time(hour=20, minute=0):
-                print "Bailing on [service code %s] (%s to %s) because it starts late (%s)" %\
-                      (service_code, service_origin, service_dest, departure_timeDateTime.strftime("%H:%M"))
+                print "Bailing on service code %s (%s to %s) because it starts late (%s)" %\
+                      (service_code,
+                       service_origin,
+                       service_dest,
+                       departure_timeDateTime.strftime("%H:%M"))
                 continue
 
-            journey_pattern_timing_link_list = journey_pattern_section_dict[journey_pattern_ref_id]
+            journey_pattern_timing_link_list = \
+                journey_pattern_section_dict[journey_pattern_ref_id]
             # The first stop is indicative of which direction the train is
             #  going and thus which line it is on. This info isn't provided
             #  in the transxchange data as far as I can tell
@@ -204,7 +219,8 @@ for e in xp_service(context):
                 elif first_stop_name in CENTRAL_TO_LITHGOW_ORIGINS:
                     line_id = 2
                 else:
-                    print "Unable to determine trip direction because %s is not a registered Origin on Blue Mountains line" % (first_stop_name,)
+                    print "Unable to determine trip direction because %s is not"\
+                    "a registered Origin on Blue Mountains line" % (first_stop_name,)
 
             elif (service_code in YELLOW_LINE_SERVICES):
                 if first_stop_name in PENRITH_TO_HORNSBY_ORIGINS:
@@ -212,10 +228,12 @@ for e in xp_service(context):
                 elif first_stop_name in HORNSBY_TO_PENRITH_ORIGINS:
                     line_id = 4
                 else:
-                    print "Unable to determine trip direction because %s is not a registered Origin on the Yellow Line" % (first_stop_name,)
+                    print "Unable to determine trip direction because %s is not"\
+                    "a registered Origin on the Yellow Line" % (first_stop_name,)
 
             else:
-                print "Unable to determine trip direction because %s is not a registered Origin" % (first_stop_name,)
+                print "Unable to determine trip direction because %s is not a"\
+                "registered Origin" % (first_stop_name,)
                 print "Trip data follows:"
 
             # Check for duplicate trips by looking for TripStops on the same line starting with the stopTime at the same station
