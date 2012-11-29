@@ -173,5 +173,5 @@ class InterchangeStation(models.Model):
     station = models.ForeignKey("Station")
 
     def __unicode__(self):
-        return u"%s" % self.id
+        return u"Interchange Station %s on line %s" % (self.station, self.line)
 
