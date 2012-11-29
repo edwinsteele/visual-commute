@@ -96,132 +96,141 @@ for station in Station.objects.all():
 print "Created %s interchange stations and %s relationships" % \
     (interchange_station_count, interchange_relationship_count)
 
-die
-
 # Journey Pattern Sections
 #  (which contain 1 or more Journey Pattern Timing Links)
-xpJourneyPatternSection = etree.XPath("//T:JourneyPatternSection", namespaces=NSMAP)
-xpFromStopPoint = etree.XPath("//T:From//T:StopPointRef", namespaces=NSMAP)
-xpToStopPoint = etree.XPath("//T:To//T:StopPointRef", namespaces=NSMAP)
-xpRunTime = etree.XPath("//T:RunTime", namespaces=NSMAP)
-xpJourneyPatternTimingLink = etree.XPath("//T:JourneyPatternTimingLink", namespaces=NSMAP)
+xp_journey_pattern_section = etree.XPath("//T:JourneyPatternSection", namespaces=NSMAP)
+xp_from_stop_point = etree.XPath("//T:From//T:StopPointRef", namespaces=NSMAP)
+xp_to_stop_point = etree.XPath("//T:To//T:StopPointRef", namespaces=NSMAP)
+xp_run_time = etree.XPath("//T:RunTime", namespaces=NSMAP)
+xp_journey_pattern_timing_link = etree.XPath("//T:JourneyPatternTimingLink", namespaces=NSMAP)
 
-for elem in xpJourneyPatternSection(context):
-    journeyPatternSection = deepcopy(elem)
-    journeyPatternSectionId = elem.attrib["id"]
-    journeyPatternTimingLinkList = []
-    for elem2 in xpJourneyPatternTimingLink(journeyPatternSection):
-        journeyPatternTimingLink = deepcopy(elem2)
-        fromStop = xpFromStopPoint(journeyPatternTimingLink)[0].text
-        toStop = xpToStopPoint(journeyPatternTimingLink)[0].text
+journey_pattern_section_count = 0
+journey_pattern_timing_link_count = 0
+for elem in xp_journey_pattern_section(context):
+    journey_pattern_section = deepcopy(elem)
+    journey_pattern_section_id = elem.attrib["id"]
+    journey_pattern_timing_link_list = []
+    for elem2 in xp_journey_pattern_timing_link(journey_pattern_section):
+        journey_pattern_timing_link = deepcopy(elem2)
+        from_stop = xp_from_stop_point(journey_pattern_timing_link)[0].text
+        to_stop = xp_to_stop_point(journey_pattern_timing_link)[0].text
         # In the format PT[0-9]{1,}M
-        runTime = int(xpRunTime(journeyPatternTimingLink)[0].text[2:-1])
-        journeyPatternTimingLinkList.append((fromStop, toStop, runTime))
+        run_time = int(xp_run_time(journey_pattern_timing_link)[0].text[2:-1])
+        journey_pattern_timing_link_list.append((from_stop, to_stop, run_time))
+        journey_pattern_timing_link_count += 1
 
-    journey_pattern_section_dict[journeyPatternSectionId] = journeyPatternTimingLinkList
-    #print "JPS id: %s. From %s (%s) to %s (%s)" % (journeyPatternSectionId, fromStop, atco_stop_map[fromStop][0], toStop, atco_stop_map[toStop][0])
+    journey_pattern_section_dict[journey_pattern_section_id] = \
+        journey_pattern_timing_link_list
+    journey_pattern_section_count += 1
+    #print "JPS id: %s. From %s (%s) to %s (%s)" % \
+    # (journey_pattern_sectionId, from_stop, atco_stop_map[from_stop][0], to_stop, atco_stop_map[to_stop][0])
 
+print "Found %s journey pattern timing links with %s sections" % (journey_pattern_timing_link_count, journey_pattern_section_count,)
 
 # Vehicle Journey
 #  (which has a single Journey Pattern Section reference)
 #  (which has a departure time)
 #  (which has a line reference and service reference)
 
-xpVehicleJourney = etree.XPath("//T:VehicleJourney", namespaces=NSMAP)
-xpVehicleJourneyCode = etree.XPath("//T:VehicleJourneyCode", namespaces=NSMAP)
-xpJourneyPatternRef = etree.XPath("//T:JourneyPatternRef", namespaces=NSMAP)
-xpLineRef = etree.XPath("//T:LineRef", namespaces=NSMAP)
-xpServiceRef = etree.XPath("//T:ServiceRef", namespaces=NSMAP)
-xpDepTime = etree.XPath("//T:DepartureTime", namespaces=NSMAP)
+xp_vehicle_journey = etree.XPath("//T:VehicleJourney", namespaces=NSMAP)
+xp_vehicle_journey_code = etree.XPath("//T:VehicleJourneyCode", namespaces=NSMAP)
+xp_journey_pattern_ref = etree.XPath("//T:JourneyPatternRef", namespaces=NSMAP)
+xp_line_ref = etree.XPath("//T:LineRef", namespaces=NSMAP)
+xp_service_ref = etree.XPath("//T:ServiceRef", namespaces=NSMAP)
+xp_dep_time = etree.XPath("//T:DepartureTime", namespaces=NSMAP)
 # Do I need the Direction element?
 
-for e in xpVehicleJourney(context):
+vehicle_journey_count = 0
+for e in xp_vehicle_journey(context):
     vj = deepcopy(e)
-    vehicleJourneyId = xpVehicleJourneyCode(vj)[0].text
-    journeyPatternRefId = xpJourneyPatternRef(vj)[0].text
-    lineRefId = int(xpLineRef(vj)[0].text)
-    serviceRefId = xpServiceRef(vj)[0].text
-    depTime = xpDepTime(vj)[0].text
-    vehicle_journey_map[vehicleJourneyId] = (serviceRefId, lineRefId, journeyPatternRefId, depTime)
+    vehicle_journey_id = xp_vehicle_journey_code(vj)[0].text
+    journey_pattern_ref_id = xp_journey_pattern_ref(vj)[0].text
+    line_ref_id = int(xp_line_ref(vj)[0].text)
+    service_ref_id = xp_service_ref(vj)[0].text
+    departure_time = xp_dep_time(vj)[0].text
+    vehicle_journey_map[vehicle_journey_id] = (service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time)
+    vehicle_journey_count += 1
+
+print "Found %s vehicle journies" % (vehicle_journey_count,)
 
 # Service
 #  (which contains a list of Journey Pattern Section references)
 #  (which has an origin and destination)
 #  (which lists the operating period (which days of the week)
 
-xpService = etree.XPath("//T:Service", namespaces=NSMAP)
-xpServiceCode = etree.XPath("//T:ServiceCode", namespaces=NSMAP)
-xpServiceDesc = etree.XPath("//T:Description", namespaces=NSMAP)
-xpServiceOrig = etree.XPath("//T:StandardService//T:Origin", namespaces=NSMAP)
-xpServiceDest = etree.XPath("//T:StandardService//T:Destination", namespaces=NSMAP)
-xpJourneyPattern = etree.XPath("//T:StandardService//T:JourneyPattern", namespaces=NSMAP)
-xpDaysOfWeek = etree.XPath("//T:OperatingProfile//T:RegularDayType//T:DaysOfWeek//T:*", namespaces=NSMAP)
+xp_service = etree.XPath("//T:Service", namespaces=NSMAP)
+xp_service_code = etree.XPath("//T:ServiceCode", namespaces=NSMAP)
+xp_service_desc = etree.XPath("//T:Description", namespaces=NSMAP)
+xp_service_origin = etree.XPath("//T:StandardService//T:Origin", namespaces=NSMAP)
+xp_service_dest = etree.XPath("//T:StandardService//T:Destination", namespaces=NSMAP)
+xp_journey_pattern = etree.XPath("//T:StandardService//T:JourneyPattern", namespaces=NSMAP)
+xp_days_of_week = etree.XPath("//T:OperatingProfile//T:RegularDayType//T:DaysOfWeek//T:*", namespaces=NSMAP)
 
-for e in xpService(context):
+for e in xp_service(context):
     s = deepcopy(e)
-    serviceCode = int(xpServiceCode(s)[0].text)
+    service_code = int(xp_service_code(s)[0].text)
     # There are lots of repeated spaces in the service desc
-    serviceDesc = " ".join(xpServiceDesc(s)[0].text.split())
-    serviceOrig = xpServiceOrig(s)[0].text
-    serviceDest = xpServiceDest(s)[0].text
+    service_desc = " ".join(xp_service_desc(s)[0].text.split())
+    service_origin = xp_service_origin(s)[0].text
+    service_dest = xp_service_dest(s)[0].text
     # abbreviated to three letters
-    operatingDays = [day.tag[len(TRANSXCHANGE):][:3] for day in xpDaysOfWeek(s)]
+    operating_days = [day.tag[len(TRANSXCHANGE):][:3] for day in xp_days_of_week(s)]
     #vehicleJourneyList = []
-    if serviceCode in SERVICE_LIST:
+    if service_code in SERVICE_LIST:
         # FIXME - get the journey pattern section refs from the actual
         #  jpsr element, not from the id of the journey pattern element
         #  even though they're the same in the example file
-        for vehicleJourneyRef in xpJourneyPattern(s):
-            vehicleJourneyId = vehicleJourneyRef.attrib["id"]
-            serviceRefId, lineRefId, journeyPatternRefId, depTime = vehicle_journey_map[vehicleJourneyId]
-            depTimeDateTime = datetime.datetime.strptime(depTime, "%H:%M:%S")
+        for vehicle_journey_ref in xp_journey_pattern(s):
+            vehicle_journey_id = vehicle_journey_ref.attrib["id"]
+            service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time = vehicle_journey_map[vehicle_journey_id]
+            departure_timeDateTime = datetime.datetime.strptime(departure_time, "%H:%M:%S")
             # FIXME - we can't handle time comparisons when the system rolls
             #  over past midnight, so for the sake of testing, let's drop any
             #  trip that starts after 8pm
-            if depTimeDateTime.time() > datetime.time(hour=20, minute=0):
-                print "Bailing on [service code %s] on line %s (%s to %s) because it starts late (%s)" %\
-                      (serviceCode, line_id, serviceOrig, serviceDest, depTimeDateTime.strftime("%H:%M"))
+            if departure_timeDateTime.time() > datetime.time(hour=20, minute=0):
+                print "Bailing on [service code %s] (%s to %s) because it starts late (%s)" %\
+                      (service_code, service_origin, service_dest, departure_timeDateTime.strftime("%H:%M"))
                 continue
 
-            journeyPatternTimingLinkList = journey_pattern_section_dict[journeyPatternRefId]
+            journey_pattern_timing_link_list = journey_pattern_section_dict[journey_pattern_ref_id]
             # The first stop is indicative of which direction the train is
             #  going and thus which line it is on. This info isn't provided
             #  in the transxchange data as far as I can tell
-            firstStopName = atco_stop_map[int(journeyPatternTimingLinkList[0][0])][0]
+            first_stop_name = atco_stop_map[int(journey_pattern_timing_link_list[0][0])][0]
             line_id = -1
-            if (serviceCode in ALL_BLUE_MOUNTAINS_SERVICES):
-                if firstStopName in LITHGOW_TO_CENTRAL_ORIGINS:
+            if (service_code in ALL_BLUE_MOUNTAINS_SERVICES):
+                if first_stop_name in LITHGOW_TO_CENTRAL_ORIGINS:
                     line_id = 1
-                elif firstStopName in CENTRAL_TO_LITHGOW_ORIGINS:
+                elif first_stop_name in CENTRAL_TO_LITHGOW_ORIGINS:
                     line_id = 2
                 else:
-                    print "Unable to determine trip direction because %s is not a registered Origin on Blue Mountains line" % (firstStopName,)
+                    print "Unable to determine trip direction because %s is not a registered Origin on Blue Mountains line" % (first_stop_name,)
 
-            elif (serviceCode in YELLOW_LINE_SERVICES):
-                if firstStopName in PENRITH_TO_HORNSBY_ORIGINS:
+            elif (service_code in YELLOW_LINE_SERVICES):
+                if first_stop_name in PENRITH_TO_HORNSBY_ORIGINS:
                     line_id = 3
-                elif firstStopName in HORNSBY_TO_PENRITH_ORIGINS:
+                elif first_stop_name in HORNSBY_TO_PENRITH_ORIGINS:
                     line_id = 4
                 else:
-                    print "Unable to determine trip direction because %s is not a registered Origin on the Yellow Line" % (firstStopName,)
+                    print "Unable to determine trip direction because %s is not a registered Origin on the Yellow Line" % (first_stop_name,)
 
             else:
-                print "Unable to determine trip direction because %s is not a registered Origin" % (firstStopName,)
+                print "Unable to determine trip direction because %s is not a registered Origin" % (first_stop_name,)
                 print "Trip data follows:"
 
             # Check for duplicate trips by looking for TripStops on the same line starting with the stopTime at the same station
             dupeTripStopSql = """
-SELECT TripStop.tripId, TripStop.tripStopId, depTime FROM TripStop, Trip
+SELECT TripStop.tripId, TripStop.tripStopId, departure_time FROM TripStop, Trip
 WHERE
 TripStop.tripId = Trip.tripId AND
 Trip.line_id = ? AND
 TripStop.station_id = ? AND
-depTime = ?
+departure_time = ?
 """
-            dupeTrip = conn.execute(dupeTripStopSql, (line_id, atco_stationcode_map[int(journeyPatternTimingLinkList[0][0])], depTimeDateTime.strftime("%H:%M"))).fetchone()
+            dupeTrip = conn.execute(dupeTripStopSql, (line_id, atco_stationcode_map[int(journey_pattern_timing_link_list[0][0])], departure_timeDateTime.strftime("%H:%M"))).fetchone()
             if dupeTrip:
                 print "== Not inserting trip as duplicate already exists (Trip: %s with TripStop: %s at %s)" %\
-                      (dupeTrip["tripId"], dupeTrip["tripStopId"], dupeTrip["depTime"])
+                      (dupeTrip["tripId"], dupeTrip["tripStopId"], dupeTrip["departure_time"])
                 continue
 
             tripSql = "INSERT INTO Trip VALUES (NULL, ?, 'WD')"
@@ -229,37 +238,37 @@ depTime = ?
                 newTripId = conn.execute(tripSql, (line_id,)).lastrowid
 
             print "New Trip (%s) [service code %s] on line %s (%s to %s), running on %s" %\
-                  (newTripId, serviceCode, line_id, serviceOrig, serviceDest, ", ".join(operatingDays))
+                  (newTripId, service_code, line_id, service_origin, service_dest, ", ".join(operating_days))
 
-            stopTime = depTimeDateTime
-            fromTripStopId = None
-            for fromStopId, toStopId, runTime in journeyPatternTimingLinkList:
-                if fromTripStopId == None:
+            stopTime = departure_timeDateTime
+            g = None
+            for from_stopId, to_stopId, run_time in journey_pattern_timing_link_list:
+                if g == None:
                     # This is the first TripStop point in the trip
-                    fromStop = atco_stop_map[int(fromStopId)]
-                    fromStopSqlId = atco_stationcode_map[int(fromStopId)]
+                    from_stop = atco_stop_map[int(from_stopId)]
+                    from_stopSqlId = atco_stationcode_map[int(from_stopId)]
                     tripStopSql = "INSERT INTO TripStop VALUES (NULL, ?, ?, ?)"
                     with conn:
-                        fromTripStopId = conn.execute(tripStopSql, (newTripId, fromStopSqlId, stopTime.strftime("%H:%M"))).lastrowid
-                        print "# Added First TripStop at %s at %s with tripStopId %s" % (fromStop[0], stopTime.strftime("%H:%M"), fromTripStopId)
+                        g = conn.execute(tripStopSql, (newTripId, from_stopSqlId, stopTime.strftime("%H:%M"))).lastrowid
+                        print "# Added First TripStop at %s at %s with tripStopId %s" % (from_stop[0], stopTime.strftime("%H:%M"), g)
                 else:
-                    # Nothing to do. The fromStop from this jptl is always
-                    #  the same as the toStop from the previous jptl
+                    # Nothing to do. The from_stop from this jptl is always
+                    #  the same as the to_stop from the previous jptl
                     pass
 
-                runTimeTimeDelta = datetime.timedelta(minutes=runTime)
-                stopTime = stopTime + runTimeTimeDelta
-                toStop = atco_stop_map[int(toStopId)]
-                toStopSqlId = atco_stationcode_map[int(toStopId)]
+                run_timeTimeDelta = datetime.timedelta(minutes=run_time)
+                stopTime = stopTime + run_timeTimeDelta
+                to_stop = atco_stop_map[int(to_stopId)]
+                to_stopSqlId = atco_stationcode_map[int(to_stopId)]
                 tripStopSql = "INSERT INTO TripStop VALUES (NULL, ?, ?, ?)"
                 with conn:
-                    toTripStopId = conn.execute(tripStopSql, (newTripId, toStopSqlId, stopTime.strftime("%H:%M"))).lastrowid
-                    #print "# Added TripStop at %s at %s with tripStopId %s" % (toStop[0], stopTime.strftime("%H:%M"), toTripStopId)
+                    to_tripstop_id = conn.execute(tripStopSql, (newTripId, to_stopSqlId, stopTime.strftime("%H:%M"))).lastrowid
+                    #print "# Added TripStop at %s at %s with tripStopId %s" % (to_stop[0], stopTime.strftime("%H:%M"), to_tripstop_id)
 
                 segmentSql = "INSERT INTO SEGMENT VALUES (NULL, ?, ?)"
                 with conn:
-                    conn.execute(segmentSql, (fromTripStopId, toTripStopId))
-                    #print "# Added Segment between TripStops %s and %s" % (fromTripStopId, toTripStopId)
+                    conn.execute(segmentSql, (g, to_tripstop_id))
+                    #print "# Added Segment between TripStops %s and %s" % (g, to_tripstop_id)
 
-                fromTripStopId = toTripStopId
+                g = to_tripstop_id
 
