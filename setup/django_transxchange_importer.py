@@ -2,7 +2,7 @@ from lxml import etree
 from copy import deepcopy
 import datetime, os, time
 
-from vcapp.models import InterchangeStation, Line, Station, Trip
+from vcapp.models import InterchangeStation, Line, Segment, Station, Trip, TripStop
 
 PATH_TO_DATA="../data"
 
@@ -46,7 +46,7 @@ interchange_station_map = {
 }
 
 atco_stop_map = {}
-atco_stationcode_map = {}
+atcocode_station_map = {}
 journey_pattern_section_dict = {}
 vehicle_journey_map = {}
 line_dict = {}
@@ -77,7 +77,7 @@ for elem in xp_stop_point(context):
     if created:
         created_station_count += 1
 
-    atco_stationcode_map[atco_code] = station
+    atcocode_station_map[atco_code] = station
 
 print "Created %s stations in %.2f secs" % (created_station_count, time.time() - start_time)
 
@@ -91,7 +91,7 @@ for station in Station.objects.all():
         interchange_station_count += 0
         for line_id in interchange_station_map[station.station_name]:
             InterchangeStation.objects.create(station=station,
-                line=Line.objects.get(line_id=line_id))
+                line=Line.objects.get(id=line_id))
             interchange_relationship_count += 0
 
 
@@ -193,17 +193,17 @@ for e in xp_service(context):
             vehicle_journey_id = vehicle_journey_ref.attrib["id"]
             service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time = \
                 vehicle_journey_map[vehicle_journey_id]
-            departure_timeDateTime = datetime.datetime.strptime(
+            departure_time_dt = datetime.datetime.strptime(
                 departure_time, "%H:%M:%S")
             # FIXME - we can't handle time comparisons when the system rolls
             #  over past midnight, so for the sake of testing, let's drop any
             #  trip that starts after 8pm
-            if departure_timeDateTime.time() > datetime.time(hour=20, minute=0):
+            if departure_time_dt.time() > datetime.time(hour=20, minute=0):
                 print "Bailing on service code %s (%s to %s) because it starts late (%s)" %\
                       (service_code,
                        service_origin,
                        service_dest,
-                       departure_timeDateTime.strftime("%H:%M"))
+                       departure_time_dt.strftime("%H:%M"))
                 continue
 
             journey_pattern_timing_link_list = \
@@ -236,57 +236,65 @@ for e in xp_service(context):
                 "registered Origin" % (first_stop_name,)
                 print "Trip data follows:"
 
-            # Check for duplicate trips by looking for TripStops on the same line starting with the stopTime at the same station
-            dupeTripStopSql = """
-SELECT TripStop.tripId, TripStop.tripStopId, departure_time FROM TripStop, Trip
-WHERE
-TripStop.tripId = Trip.tripId AND
-Trip.line_id = ? AND
-TripStop.station_id = ? AND
-departure_time = ?
-"""
-            dupeTrip = conn.execute(dupeTripStopSql, (line_id, atco_stationcode_map[int(journey_pattern_timing_link_list[0][0])], departure_timeDateTime.strftime("%H:%M"))).fetchone()
-            if dupeTrip:
-                print "== Not inserting trip as duplicate already exists (Trip: %s with TripStop: %s at %s)" %\
-                      (dupeTrip["tripId"], dupeTrip["tripStopId"], dupeTrip["departure_time"])
+            # Check for duplicate trips by looking for TripStops on the same
+            # line starting with the stop_time at the same station
+            dupe_tripstop_list = TripStop.objects.filter(
+                    trip__line__id=line_id,
+                    station=atcocode_station_map[int(journey_pattern_timing_link_list[0][0])],
+                    departure_time=departure_time_dt)
+            if dupe_tripstop_list:
+                print "Not inserting trip as duplicate already exists"\
+                      "(Trip: %s with TripStop: %s at %s)" %\
+                      (dupe_tripstop_list[0].trip.id,
+                       dupe_tripstop_list[0].station.short_name(),
+                       dupe_tripstop_list[0].departure_time)
                 continue
+            else:
+                new_trip = Trip(timetable_type='WD',
+                    line=Line.objects.get(id=line_id))
+                new_trip.save()
+                print "Created New Trip (%s) [service code %s] on line %s"\
+                      "(%s to %s), running on %s" %\
+                      (new_trip.id,
+                       service_code,
+                       new_trip.line.id,
+                       service_origin,
+                       service_dest,
+                       ", ".join(operating_days))
 
-            tripSql = "INSERT INTO Trip VALUES (NULL, ?, 'WD')"
-            with conn:
-                newTripId = conn.execute(tripSql, (line_id,)).lastrowid
-
-            print "New Trip (%s) [service code %s] on line %s (%s to %s), running on %s" %\
-                  (newTripId, service_code, line_id, service_origin, service_dest, ", ".join(operating_days))
-
-            stopTime = departure_timeDateTime
-            g = None
-            for from_stopId, to_stopId, run_time in journey_pattern_timing_link_list:
-                if g == None:
+            stop_time = departure_time_dt
+            departure_tripstop = None
+            for from_stop_id, to_stop_id, run_time in journey_pattern_timing_link_list:
+                if departure_tripstop == None:
                     # This is the first TripStop point in the trip
-                    from_stop = atco_stop_map[int(from_stopId)]
-                    from_stopSqlId = atco_stationcode_map[int(from_stopId)]
-                    tripStopSql = "INSERT INTO TripStop VALUES (NULL, ?, ?, ?)"
-                    with conn:
-                        g = conn.execute(tripStopSql, (newTripId, from_stopSqlId, stopTime.strftime("%H:%M"))).lastrowid
-                        print "# Added First TripStop at %s at %s with tripStopId %s" % (from_stop[0], stopTime.strftime("%H:%M"), g)
+                    #from_stop = atco_stop_map[int(from_stop_id)]
+                    departure_station = atcocode_station_map[int(from_stop_id)]
+                    departure_tripstop = TripStop(
+                        departure_time=departure_time_dt,
+                        trip=new_trip,
+                        station=departure_station)
+                    departure_tripstop.save()
+                    print "# Added First TripStop at %s at %s with tripStopId %s" % \
+                          (departure_station, departure_time_dt, departure_tripstop)
                 else:
                     # Nothing to do. The from_stop from this jptl is always
                     #  the same as the to_stop from the previous jptl
                     pass
 
-                run_timeTimeDelta = datetime.timedelta(minutes=run_time)
-                stopTime = stopTime + run_timeTimeDelta
-                to_stop = atco_stop_map[int(to_stopId)]
-                to_stopSqlId = atco_stationcode_map[int(to_stopId)]
-                tripStopSql = "INSERT INTO TripStop VALUES (NULL, ?, ?, ?)"
-                with conn:
-                    to_tripstop_id = conn.execute(tripStopSql, (newTripId, to_stopSqlId, stopTime.strftime("%H:%M"))).lastrowid
-                    #print "# Added TripStop at %s at %s with tripStopId %s" % (to_stop[0], stopTime.strftime("%H:%M"), to_tripstop_id)
+                stop_time = stop_time + datetime.timedelta(minutes=run_time)
+                #to_stop = atco_stop_map[int(to_stop_id)]
+                to_station = atcocode_station_map[int(to_stop_id)]
+                arrival_tripstop = TripStop(
+                    departure_time=stop_time,
+                    trip=new_trip,
+                    station=to_station)
+                arrival_tripstop.save()
+                #print "# Added TripStop at %s at %s with tripStopId %s" % (to_stop[0], stop_time.strftime("%H:%M"), to_tripstop_id)
 
-                segmentSql = "INSERT INTO SEGMENT VALUES (NULL, ?, ?)"
-                with conn:
-                    conn.execute(segmentSql, (g, to_tripstop_id))
-                    #print "# Added Segment between TripStops %s and %s" % (g, to_tripstop_id)
+                s = Segment(departure_tripstop=departure_tripstop,
+                    arrival_tripstop=arrival_tripstop,
+                    trip=new_trip)
+                s.save()
+                print "# Added Segment between TripStops %s and %s" % (departure_tripstop, arrival_tripstop)
 
-                g = to_tripstop_id
-
+                departure_tripstop = arrival_tripstop
