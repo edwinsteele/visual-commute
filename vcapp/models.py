@@ -12,7 +12,6 @@ import geometry
 import datetime as dt
 
 class Station(models.Model):
-    station_id = models.IntegerField(primary_key=True)
     station_name = models.CharField(max_length=50)
     lon = models.FloatField()
     lat = models.FloatField()
@@ -37,11 +36,10 @@ class Station(models.Model):
 
 
 class Line(models.Model):
-    line_id = models.IntegerField(primary_key=True)
     line_name = models.CharField(max_length=50)
 
     def __unicode__(self):
-        return u"%s (id %s)" % (self.line_name, self.line_id)
+        return u"%s (id %s)" % (self.line_name, self.id)
 
 
 class Trip(models.Model):
@@ -52,16 +50,20 @@ class Trip(models.Model):
         ('WD', 'Weekday'),
         ('WE', 'Weekend'),
     )
-    trip_id = models.IntegerField(primary_key=True)
     timetable_type = models.CharField(max_length=2, choices=TIMETABLE_TYPE_CHOICES)
     line = models.ForeignKey('Line')
 
     def __unicode__(self):
-        return u"Trip (id:%s) from %s to %s, on line %s" % \
-               (self.trip_id,
-                self.get_segments()[0].departure_tripstop.station,
-                self.get_segments()[0].arrival_tripstop.station,
-                self.line.line_id)
+        if self.get_segments():
+            return u"Trip (id:%s) from %s to %s, on line %s" % \
+                   (self.id,
+                    self.get_segments()[0].departure_tripstop.station,
+                    self.get_segments()[0].arrival_tripstop.station,
+                    self.line.id)
+        else:
+            return u"Trip (id:%s) (no segments), on line %s" %\
+                   (self.id,
+                    self.line.id)
 
     def get_segments(self):
         # FIXME - we need to order the segments explicitly... order do we given we do the initial load?
@@ -87,13 +89,12 @@ class TripStop(models.Model):
     key should be tripId + stationId. A station can't appear more than once
     on a particular trip (what about city circle?)
     """
-    tripstop_id = models.IntegerField(primary_key=True)
     departure_time = models.TimeField()
     trip = models.ForeignKey('Trip')
     station = models.ForeignKey('Station')
 
     def __unicode__(self):
-        return u"%s" % self.tripstop_id
+        return u"%s" % self.id
 
 
 class Segment(models.Model):
@@ -101,7 +102,6 @@ class Segment(models.Model):
     Note that because we only store departure time, we don't know how long a
     train actually waits at a station. close enough for the moment
     """
-    segment_id = models.IntegerField(primary_key=True)
     # FIXME - do I really need to create a backwards relation for these FKs?
     # https://docs.djangoproject.com/en/dev/topics/db/queries/#backwards-related-objects
     departure_tripstop = models.ForeignKey('TripStop', related_name='departure_point')
@@ -113,7 +113,7 @@ class Segment(models.Model):
 
     def __unicode__(self):
         return u"Segment [%s] from %s (%s) to %s (%s)" % \
-               (self.segment_id,
+               (self.id,
                 self.departure_tripstop.station,
                 self.departure_tripstop.departure_time,
                 self.arrival_tripstop.station,
@@ -124,14 +124,14 @@ class Segment(models.Model):
         # arrival and departure trip id should be the same, perhaps with the
         #  exception of interchange segments
         assert self.departure_tripstop.trip_id == self.arrival_tripstop.trip_id
-        return self.trip.trip_id
+        return self.trip.id
 
     def get_line_id(self):
         # arrival and departure line id should be the same, perhaps with the
         #  exception of interchange segments
-        assert self.departure_tripstop.trip.line.line_id == \
-               self.arrival_tripstop.trip.line.line_id
-        return self.trip.line.line_id
+        assert self.departure_tripstop.trip.line.id == \
+               self.arrival_tripstop.trip.line.id
+        return self.trip.line.id
 
     def get_departure_point_name(self):
         return "%s on trip %s" % (self.departure_tripstop.station.station_name,
@@ -150,9 +150,9 @@ class Segment(models.Model):
             arv_name = self.get_arrival_point_name()
 
         if dep_name not in dg:
-            dg.add_node(dep_name, {"tripId":self.tripId, "pist":self.departure_tripstop})
+            dg.add_node(dep_name, {"tripId":self.id, "pist":self.departure_tripstop})
         if arv_name not in dg:
-            dg.add_node(arv_name, {"tripId":self.tripId, "pist":self.arrival_tripstop})
+            dg.add_node(arv_name, {"tripId":self.id, "pist":self.arrival_tripstop})
 
         dtdt = dt.datetime
         duration_time_delta = \

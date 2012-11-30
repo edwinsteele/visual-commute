@@ -6,8 +6,8 @@ __author__ = 'esteele'
 
 class StationTestCase(TestCase):
     def setUp(self):
-        self.blaxland_station = Station.objects.get(station_id=252)
-        self.glenbrook_station = Station.objects.get(station_id=132)
+        self.blaxland_station = Station.objects.get(id=252)
+        self.glenbrook_station = Station.objects.get(id=132)
 
     def test_short_name(self):
         self.assertEqual(self.blaxland_station.short_name(), "Blaxland")
@@ -16,13 +16,13 @@ class StationTestCase(TestCase):
         self.assertAlmostEqual(self.blaxland_station.distance_from(self.glenbrook_station), 0.0364895750499)
 
     def test_find_closest_segment(self):
-        return self.skipTest("Not implemented yet")
+        return self.skipTest("Station Find Closest Segment Not implemented yet")
 
 class TripTestCase(TestCase):
     fixtures = ['testdata.json']
 
     def setUp(self):
-        self.a_trip = Trip.objects.get(trip_id=1)
+        self.a_trip = Trip.objects.get(id=1)
 
     def test_get_segments(self):
         s = self.a_trip.get_segments()
