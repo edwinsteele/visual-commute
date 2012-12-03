@@ -51,6 +51,38 @@ journey_pattern_section_dict = {}
 vehicle_journey_map = {}
 line_dict = {}
 
+def determine_line_id(svc_code, first_stop):
+    """
+    The first stop is indicative of which direction the train is
+     going and thus which line it is on. This info isn't provided
+     in the transxchange data as far as I can tell
+    """
+    line_id = -1
+    if (svc_code in ALL_BLUE_MOUNTAINS_SERVICES):
+        if first_stop in LITHGOW_TO_CENTRAL_ORIGINS:
+            line_id = 1
+        elif first_stop in CENTRAL_TO_LITHGOW_ORIGINS:
+            line_id = 2
+        else:
+            print "Unable to determine trip direction because %s is not"\
+                  "a registered Origin on Blue Mountains line" % (first_stop,)
+
+    elif (svc_code in YELLOW_LINE_SERVICES):
+        if first_stop in PENRITH_TO_HORNSBY_ORIGINS:
+            line_id = 3
+        elif first_stop in HORNSBY_TO_PENRITH_ORIGINS:
+            line_id = 4
+        else:
+            print "Unable to determine trip direction because %s is not"\
+                  "a registered Origin on the Yellow Line" % (first_stop,)
+
+    else:
+        print "Unable to determine trip direction because %s is not a"\
+              "registered Origin" % (first_stop,)
+
+    return line_id
+
+
 # TODO - how do I programatically drop the tables (and then load initial data)?
 
 # Parse the timetable data
@@ -184,7 +216,6 @@ for e in xp_service(context):
     service_dest = xp_service_dest(s)[0].text
     # abbreviated to three letters
     operating_days = [day.tag[len(TRANSXCHANGE):][:3] for day in xp_days_of_week(s)]
-    #vehicleJourneyList = []
     if service_code in SERVICE_LIST:
         # FIXME - get the journey pattern section refs from the actual
         #  jpsr element, not from the id of the journey pattern element
@@ -208,33 +239,12 @@ for e in xp_service(context):
 
             journey_pattern_timing_link_list = \
                 journey_pattern_section_dict[journey_pattern_ref_id]
-            # The first stop is indicative of which direction the train is
-            #  going and thus which line it is on. This info isn't provided
-            #  in the transxchange data as far as I can tell
             first_stop_name = atco_stop_map[int(journey_pattern_timing_link_list[0][0])][0]
-            line_id = -1
-            if (service_code in ALL_BLUE_MOUNTAINS_SERVICES):
-                if first_stop_name in LITHGOW_TO_CENTRAL_ORIGINS:
-                    line_id = 1
-                elif first_stop_name in CENTRAL_TO_LITHGOW_ORIGINS:
-                    line_id = 2
-                else:
-                    print "Unable to determine trip direction because %s is not"\
-                    "a registered Origin on Blue Mountains line" % (first_stop_name,)
-
-            elif (service_code in YELLOW_LINE_SERVICES):
-                if first_stop_name in PENRITH_TO_HORNSBY_ORIGINS:
-                    line_id = 3
-                elif first_stop_name in HORNSBY_TO_PENRITH_ORIGINS:
-                    line_id = 4
-                else:
-                    print "Unable to determine trip direction because %s is not"\
-                    "a registered Origin on the Yellow Line" % (first_stop_name,)
-
-            else:
-                print "Unable to determine trip direction because %s is not a"\
-                "registered Origin" % (first_stop_name,)
-                print "Trip data follows:"
+            line_id = determine_line_id(service_code, first_stop_name)
+            if line_id == -1:
+                print "Couldn't determine a line id for service code %s with "\
+                "first stop %s" % (service_code, first_stop_name)
+                continue
 
             # Check for duplicate trips by looking for TripStops on the same
             # line starting with the stop_time at the same station
@@ -264,37 +274,37 @@ for e in xp_service(context):
 
             stop_time = departure_time_dt
             departure_tripstop = None
+            segment_count = 0
+            tripstop_count = 0
             for from_stop_id, to_stop_id, run_time in journey_pattern_timing_link_list:
                 if departure_tripstop == None:
-                    # This is the first TripStop point in the trip
-                    #from_stop = atco_stop_map[int(from_stop_id)]
+                    # This is the first TripStop point in the trip so we need
+                    #  to setup the starting point
                     departure_station = atcocode_station_map[int(from_stop_id)]
                     departure_tripstop = TripStop(
                         departure_time=departure_time_dt,
                         trip=new_trip,
                         station=departure_station)
                     departure_tripstop.save()
-                    print "# Added First TripStop at %s at %s with tripStopId %s" % \
-                          (departure_station, departure_time_dt, departure_tripstop)
-                else:
-                    # Nothing to do. The from_stop from this jptl is always
-                    #  the same as the to_stop from the previous jptl
-                    pass
+                    tripstop_count += 1
 
-                stop_time = stop_time + datetime.timedelta(minutes=run_time)
-                #to_stop = atco_stop_map[int(to_stop_id)]
-                to_station = atcocode_station_map[int(to_stop_id)]
+                stop_time = departure_time_dt + datetime.timedelta(minutes=run_time)
+                arrival_station = atcocode_station_map[int(to_stop_id)]
                 arrival_tripstop = TripStop(
                     departure_time=stop_time,
                     trip=new_trip,
-                    station=to_station)
+                    station=arrival_station)
                 arrival_tripstop.save()
-                #print "# Added TripStop at %s at %s with tripStopId %s" % (to_stop[0], stop_time.strftime("%H:%M"), to_tripstop_id)
+                tripstop_count += 1
 
                 s = Segment(departure_tripstop=departure_tripstop,
                     arrival_tripstop=arrival_tripstop,
                     trip=new_trip)
                 s.save()
-                print "# Added Segment between TripStops %s and %s" % (departure_tripstop, arrival_tripstop)
+                segment_count += 1
 
                 departure_tripstop = arrival_tripstop
+
+            print "Added %s TripStops and %s Segments to Trip with Id %s (that"\
+                  "departs at %s)" % \
+                (tripstop_count, segment_count, new_trip.id, departure_time_dt)
