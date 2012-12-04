@@ -1,0 +1,27 @@
+{% extends "vcapp/base.html" %}
+
+{% block title %}recent history{% endblock %}
+{% block content %}
+    <div class="row">
+    </div>
+
+{% if this_trip %}
+   Showing {{  this_trip }}.<br>
+{% else %}
+    No context available.<br>
+{%  endif %}
+
+<table border="1">
+{% for station, dep_time_list in sparse.items %}
+    <tr>
+    <td>{{ station }}</td>
+    {% for dep_time in dep_time_list %}
+        <td>{{ dep_time }}</td>
+    {% endfor %}
+    </tr>
+{% endfor %}
+</table>
+{{ sparse.popitem }}
+    {{ sparse.popitem }}
+    {{ sparse.popitem }}
+{% endblock %}
