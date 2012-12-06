@@ -4,7 +4,7 @@ import datetime, os, time
 
 from vcapp.models import InterchangeStation, Line, Segment, Station, Trip, TripStop
 import logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
 
 PATH_TO_DATA="../data"
 
@@ -48,10 +48,7 @@ interchange_station_map = {
     "North Sydney Station":(3,4)
 }
 
-atco_stop_map = {}
-atcocode_station_map = {}
 journey_pattern_section_dict = {}
-vehicle_journey_map = {}
 line_dict = {}
 
 def determine_line_id(svc_code, first_stop):
@@ -61,7 +58,7 @@ def determine_line_id(svc_code, first_stop):
      in the transxchange data as far as I can tell
     """
     line_id = -1
-    if (svc_code in ALL_BLUE_MOUNTAINS_SERVICES):
+    if svc_code in ALL_BLUE_MOUNTAINS_SERVICES:
         if first_stop in LITHGOW_TO_CENTRAL_ORIGINS:
             line_id = 1
         elif first_stop in CENTRAL_TO_LITHGOW_ORIGINS:
@@ -70,7 +67,7 @@ def determine_line_id(svc_code, first_stop):
             logging.error("Unable to determine trip direction because %s is not"\
                   "a registered Origin on Blue Mountains line" % (first_stop,))
 
-    elif (svc_code in YELLOW_LINE_SERVICES):
+    elif svc_code in YELLOW_LINE_SERVICES:
         if first_stop in PENRITH_TO_HORNSBY_ORIGINS:
             line_id = 3
         elif first_stop in HORNSBY_TO_PENRITH_ORIGINS:
@@ -85,53 +82,94 @@ def determine_line_id(svc_code, first_stop):
 
     return line_id
 
+def create_interchange_stations(interchange_station_map):
+    interchange_station_count = 0
+    interchange_relationship_count = 0
+
+    start_time = time.time()
+    # Setup Interchange Stations
+    for station in Station.objects.all():
+        if station.station_name in interchange_station_map:
+            interchange_station_count += 0
+            for line_id in interchange_station_map[station.station_name]:
+                InterchangeStation.objects.create(station=station,
+                    line=Line.objects.get(id=line_id))
+                interchange_relationship_count += 0
+
+    logging.info("Created %s interchange stations and %s relationships in %.2f secs" %\
+                 (interchange_station_count, interchange_relationship_count, time.time() - start_time))
+
+
+def extract_vehicle_journies(context):
+    """
+    Vehicle Journey
+     (which has a single Journey Pattern Section reference)
+     (which has a departure time)
+     (which has a line reference and service reference)
+    """
+    xp_vehicle_journey = etree.XPath("//T:VehicleJourney", namespaces=NSMAP)
+    xp_vehicle_journey_code = etree.XPath("//T:VehicleJourneyCode", namespaces=NSMAP)
+    xp_journey_pattern_ref = etree.XPath("//T:JourneyPatternRef", namespaces=NSMAP)
+    xp_line_ref = etree.XPath("//T:LineRef", namespaces=NSMAP)
+    xp_service_ref = etree.XPath("//T:ServiceRef", namespaces=NSMAP)
+    xp_dep_time = etree.XPath("//T:DepartureTime", namespaces=NSMAP)
+    # Do I need the Direction element?
+
+    vehicle_journey_map = {}
+    start_time = time.time()
+    vehicle_journey_count = 0
+    for e in xp_vehicle_journey(context):
+        vj = deepcopy(e)
+        vehicle_journey_id = xp_vehicle_journey_code(vj)[0].text
+        journey_pattern_ref_id = xp_journey_pattern_ref(vj)[0].text
+        line_ref_id = int(xp_line_ref(vj)[0].text)
+        service_ref_id = xp_service_ref(vj)[0].text
+        departure_time = xp_dep_time(vj)[0].text
+        vehicle_journey_map[vehicle_journey_id] = (service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time)
+        vehicle_journey_count += 1
+
+    logging.info("Found %s vehicle journies in %.2f secs" %\
+                 (vehicle_journey_count, time.time() - start_time))
+
+    return vehicle_journey_map
+
+def extract_stations(context):
+    # Find the stop points
+    xp_stop_point = etree.XPath("//T:StopPoint", namespaces=NSMAP)
+    xp_atco_code = etree.XPath("//T:AtcoCode", namespaces=NSMAP)
+    xp_common_name = etree.XPath("//T:Descriptor//T:CommonName", namespaces=NSMAP)
+    xp_lon = etree.XPath("//T:Place//T:Location//T:Longitude", namespaces=NSMAP)
+    xp_lat = etree.XPath("//T:Place//T:Location//T:Latitude", namespaces=NSMAP)
+
+    atco_stop_map = {}
+    atcocode_station_map = {}
+
+    created_station_count = 0
+    start_time = time.time()
+    for elem in xp_stop_point(context):
+        stop_point = deepcopy(elem)
+        atco_code = int(xp_atco_code(stop_point)[0].text)
+        stop_name = xp_common_name(stop_point)[0].text
+        lon = float(xp_lon(stop_point)[0].text)
+        lat = float(xp_lat(stop_point)[0].text)
+        atco_stop_map[atco_code] = (stop_name, lon, lat)
+        # TODO - it's possible that we don't need stations in our initial_data as this script will populate
+        station, created = Station.objects.get_or_create(station_name=stop_name, lon=lon, lat=lat)
+        if created:
+            created_station_count += 1
+
+        atcocode_station_map[atco_code] = station
+
+    logging.info("Created %s stations in %.2f secs" % (created_station_count, time.time() - start_time))
+    return atco_stop_map, atcocode_station_map
+
 
 # TODO - how do I programatically drop the tables (and then load initial data)?
-
 # Parse the timetable data
 context = etree.parse(os.path.join(PATH_TO_DATA, "505_20090828.xml"))
 
-# Find the stop points
-xp_stop_point = etree.XPath("//T:StopPoint", namespaces=NSMAP)
-xp_atco_code = etree.XPath("//T:AtcoCode", namespaces=NSMAP)
-xp_common_name = etree.XPath("//T:Descriptor//T:CommonName", namespaces=NSMAP)
-xp_lon = etree.XPath("//T:Place//T:Location//T:Longitude", namespaces=NSMAP)
-xp_lat = etree.XPath("//T:Place//T:Location//T:Latitude", namespaces=NSMAP)
-
-created_station_count = 0
-start_time = time.time()
-for elem in xp_stop_point(context):
-    stop_point = deepcopy(elem)
-    atco_code = int(xp_atco_code(stop_point)[0].text)
-    stop_name = xp_common_name(stop_point)[0].text
-    lon = float(xp_lon(stop_point)[0].text)
-    lat = float(xp_lat(stop_point)[0].text)
-    atco_stop_map[atco_code] = (stop_name, lon, lat)
-    # TODO - it's possible that we don't need stations in our initial_data as this script will populate
-    station, created = Station.objects.get_or_create(station_name=stop_name, lon=lon, lat=lat)
-    if created:
-        created_station_count += 1
-
-    atcocode_station_map[atco_code] = station
-
-logging.info("Created %s stations in %.2f secs" % (created_station_count, time.time() - start_time))
-
-interchange_station_count = 0
-interchange_relationship_count = 0
-
-start_time = time.time()
-# Setup Interchange Stations
-for station in Station.objects.all():
-    if station.station_name in interchange_station_map:
-        interchange_station_count += 0
-        for line_id in interchange_station_map[station.station_name]:
-            InterchangeStation.objects.create(station=station,
-                line=Line.objects.get(id=line_id))
-            interchange_relationship_count += 0
-
-
-logging.info("Created %s interchange stations and %s relationships in %.2f secs" % \
-    (interchange_station_count, interchange_relationship_count, time.time() - start_time))
+atco_stop_map, atcocode_station_map = extract_stations(context)
+create_interchange_stations(interchange_station_map)
 
 # Journey Pattern Sections
 #  (which contain 1 or more Journey Pattern Timing Links)
@@ -161,41 +199,19 @@ for elem in xp_journey_pattern_section(context):
     journey_pattern_section_dict[journey_pattern_section_id] = \
         journey_pattern_timing_link_list
     journey_pattern_section_count += 1
-    #print "JPS id: %s. From %s (%s) to %s (%s)" % \
-    # (journey_pattern_sectionId, from_stop, atco_stop_map[from_stop][0], to_stop, atco_stop_map[to_stop][0])
+    logging.debug("JPS id: %s. From %s (%s) to %s (%s)" %
+                  (journey_pattern_section_id,
+                   from_stop,
+                   atcocode_station_map[from_stop].station_name,
+                   to_stop,
+                   atcocode_station_map[to_stop].station_name))
 
 logging.info("Found %s journey pattern timing links with %s sections in %.2f secs" % \
       (journey_pattern_timing_link_count,
        journey_pattern_section_count,
        time.time() - start_time))
 
-# Vehicle Journey
-#  (which has a single Journey Pattern Section reference)
-#  (which has a departure time)
-#  (which has a line reference and service reference)
-
-xp_vehicle_journey = etree.XPath("//T:VehicleJourney", namespaces=NSMAP)
-xp_vehicle_journey_code = etree.XPath("//T:VehicleJourneyCode", namespaces=NSMAP)
-xp_journey_pattern_ref = etree.XPath("//T:JourneyPatternRef", namespaces=NSMAP)
-xp_line_ref = etree.XPath("//T:LineRef", namespaces=NSMAP)
-xp_service_ref = etree.XPath("//T:ServiceRef", namespaces=NSMAP)
-xp_dep_time = etree.XPath("//T:DepartureTime", namespaces=NSMAP)
-# Do I need the Direction element?
-
-start_time = time.time()
-vehicle_journey_count = 0
-for e in xp_vehicle_journey(context):
-    vj = deepcopy(e)
-    vehicle_journey_id = xp_vehicle_journey_code(vj)[0].text
-    journey_pattern_ref_id = xp_journey_pattern_ref(vj)[0].text
-    line_ref_id = int(xp_line_ref(vj)[0].text)
-    service_ref_id = xp_service_ref(vj)[0].text
-    departure_time = xp_dep_time(vj)[0].text
-    vehicle_journey_map[vehicle_journey_id] = (service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time)
-    vehicle_journey_count += 1
-
-logging.info("Found %s vehicle journies in %.2f secs" % \
-      (vehicle_journey_count, time.time() - start_time))
+vehicle_journey_map = extract_vehicle_journies(context)
 
 # Service
 #  (which contains a list of Journey Pattern Section references)
@@ -242,7 +258,8 @@ for e in xp_service(context):
 
             journey_pattern_timing_link_list = \
                 journey_pattern_section_dict[journey_pattern_ref_id]
-            first_stop_name = atco_stop_map[int(journey_pattern_timing_link_list[0][0])][0]
+            #first_stop_name = atco_stop_map[int(journey_pattern_timing_link_list[0][0])][0]
+            first_stop_name = atcocode_station_map[int(journey_pattern_timing_link_list[0][0])].station_name
             line_id = determine_line_id(service_code, first_stop_name)
             if line_id == -1:
                 logging.warn("Couldn't determine a line id for service code %s with "\
