@@ -6,7 +6,7 @@ from vcapp.models import InterchangeStation, Line, Segment, Station, Trip, TripS
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
 
-PATH_TO_DATA="../data"
+PATH_TO_DATA = "../data"
 
 TRANSXCHANGE_NAMESPACE = "http://www.transxchange.org.uk/"
 TRANSXCHANGE = "{%s}" % TRANSXCHANGE_NAMESPACE
@@ -48,7 +48,6 @@ interchange_station_map = {
     "North Sydney Station":(3,4)
 }
 
-journey_pattern_section_dict = {}
 line_dict = {}
 
 def determine_line_id(svc_code, first_stop):
@@ -133,6 +132,7 @@ def extract_vehicle_journies(context):
 
     return vehicle_journey_map
 
+
 def extract_stations(context):
     # Find the stop points
     xp_stop_point = etree.XPath("//T:StopPoint", namespaces=NSMAP)
@@ -141,7 +141,6 @@ def extract_stations(context):
     xp_lon = etree.XPath("//T:Place//T:Location//T:Longitude", namespaces=NSMAP)
     xp_lat = etree.XPath("//T:Place//T:Location//T:Latitude", namespaces=NSMAP)
 
-    atco_stop_map = {}
     atcocode_station_map = {}
 
     created_station_count = 0
@@ -152,7 +151,6 @@ def extract_stations(context):
         stop_name = xp_common_name(stop_point)[0].text
         lon = float(xp_lon(stop_point)[0].text)
         lat = float(xp_lat(stop_point)[0].text)
-        atco_stop_map[atco_code] = (stop_name, lon, lat)
         # TODO - it's possible that we don't need stations in our initial_data as this script will populate
         station, created = Station.objects.get_or_create(station_name=stop_name, lon=lon, lat=lat)
         if created:
@@ -161,56 +159,60 @@ def extract_stations(context):
         atcocode_station_map[atco_code] = station
 
     logging.info("Created %s stations in %.2f secs" % (created_station_count, time.time() - start_time))
-    return atco_stop_map, atcocode_station_map
+    return atcocode_station_map
+
+
+def extract_journey_pattern_sections(context, atcocode_station_map):
+    # Journey Pattern Sections
+    #  (which contain 1 or more Journey Pattern Timing Links)
+    xp_journey_pattern_section = etree.XPath("//T:JourneyPatternSection", namespaces=NSMAP)
+    xp_from_stop_point = etree.XPath("//T:From//T:StopPointRef", namespaces=NSMAP)
+    xp_to_stop_point = etree.XPath("//T:To//T:StopPointRef", namespaces=NSMAP)
+    xp_run_time = etree.XPath("//T:RunTime", namespaces=NSMAP)
+    xp_journey_pattern_timing_link = etree.XPath("//T:JourneyPatternTimingLink", namespaces=NSMAP)
+
+    journey_pattern_section_count = 0
+    journey_pattern_timing_link_count = 0
+    journey_pattern_section_dict = {}
+
+    start_time = time.time()
+    for elem in xp_journey_pattern_section(context):
+        journey_pattern_section = deepcopy(elem)
+        journey_pattern_section_id = elem.attrib["id"]
+        journey_pattern_timing_link_list = []
+        for elem2 in xp_journey_pattern_timing_link(journey_pattern_section):
+            journey_pattern_timing_link = deepcopy(elem2)
+            from_stop = xp_from_stop_point(journey_pattern_timing_link)[0].text
+            to_stop = xp_to_stop_point(journey_pattern_timing_link)[0].text
+            # In the format PT[0-9]{1,}M
+            run_time = int(xp_run_time(journey_pattern_timing_link)[0].text[2:-1])
+            # TODO: Can possibly use objects here... maybe
+            journey_pattern_timing_link_list.append((from_stop, to_stop, run_time))
+            journey_pattern_timing_link_count += 1
+
+        journey_pattern_section_dict[journey_pattern_section_id] =\
+        journey_pattern_timing_link_list
+        journey_pattern_section_count += 1
+        logging.debug("JPS id: %s. From %s (%s) to %s (%s)" %
+                      (journey_pattern_section_id,
+                       from_stop,
+                       atcocode_station_map[from_stop].station_name,
+                       to_stop,
+                       atcocode_station_map[to_stop].station_name))
+
+    logging.info("Found %s journey pattern timing links with %s sections in %.2f secs" %\
+                 (journey_pattern_timing_link_count,
+                  journey_pattern_section_count,
+                  time.time() - start_time))
 
 
 # TODO - how do I programatically drop the tables (and then load initial data)?
 # Parse the timetable data
 context = etree.parse(os.path.join(PATH_TO_DATA, "505_20090828.xml"))
 
-atco_stop_map, atcocode_station_map = extract_stations(context)
+atcocode_station_map = extract_stations(context)
 create_interchange_stations(interchange_station_map)
-
-# Journey Pattern Sections
-#  (which contain 1 or more Journey Pattern Timing Links)
-xp_journey_pattern_section = etree.XPath("//T:JourneyPatternSection", namespaces=NSMAP)
-xp_from_stop_point = etree.XPath("//T:From//T:StopPointRef", namespaces=NSMAP)
-xp_to_stop_point = etree.XPath("//T:To//T:StopPointRef", namespaces=NSMAP)
-xp_run_time = etree.XPath("//T:RunTime", namespaces=NSMAP)
-xp_journey_pattern_timing_link = etree.XPath("//T:JourneyPatternTimingLink", namespaces=NSMAP)
-
-journey_pattern_section_count = 0
-journey_pattern_timing_link_count = 0
-
-start_time = time.time()
-for elem in xp_journey_pattern_section(context):
-    journey_pattern_section = deepcopy(elem)
-    journey_pattern_section_id = elem.attrib["id"]
-    journey_pattern_timing_link_list = []
-    for elem2 in xp_journey_pattern_timing_link(journey_pattern_section):
-        journey_pattern_timing_link = deepcopy(elem2)
-        from_stop = xp_from_stop_point(journey_pattern_timing_link)[0].text
-        to_stop = xp_to_stop_point(journey_pattern_timing_link)[0].text
-        # In the format PT[0-9]{1,}M
-        run_time = int(xp_run_time(journey_pattern_timing_link)[0].text[2:-1])
-        journey_pattern_timing_link_list.append((from_stop, to_stop, run_time))
-        journey_pattern_timing_link_count += 1
-
-    journey_pattern_section_dict[journey_pattern_section_id] = \
-        journey_pattern_timing_link_list
-    journey_pattern_section_count += 1
-    logging.debug("JPS id: %s. From %s (%s) to %s (%s)" %
-                  (journey_pattern_section_id,
-                   from_stop,
-                   atcocode_station_map[from_stop].station_name,
-                   to_stop,
-                   atcocode_station_map[to_stop].station_name))
-
-logging.info("Found %s journey pattern timing links with %s sections in %.2f secs" % \
-      (journey_pattern_timing_link_count,
-       journey_pattern_section_count,
-       time.time() - start_time))
-
+journey_pattern_section_dict = extract_journey_pattern_sections(context)
 vehicle_journey_map = extract_vehicle_journies(context)
 
 # Service
@@ -258,7 +260,6 @@ for e in xp_service(context):
 
             journey_pattern_timing_link_list = \
                 journey_pattern_section_dict[journey_pattern_ref_id]
-            #first_stop_name = atco_stop_map[int(journey_pattern_timing_link_list[0][0])][0]
             first_stop_name = atcocode_station_map[int(journey_pattern_timing_link_list[0][0])].station_name
             line_id = determine_line_id(service_code, first_stop_name)
             if line_id == -1:
