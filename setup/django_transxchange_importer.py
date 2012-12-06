@@ -3,6 +3,8 @@ from copy import deepcopy
 import datetime, os, time
 
 from vcapp.models import InterchangeStation, Line, Segment, Station, Trip, TripStop
+import logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(message)s')
 
 PATH_TO_DATA="../data"
 
@@ -18,8 +20,9 @@ YELLOW_LINE_SERVICES= [9901, 9903, 9904, 9906, 9908, 9909, 9911, 9964, 9965, 996
 #INBOUND_BLUE_MOUNTAINS_SERVICES = (9833, 9835, 9838, 9840, 9841, 9843, 9844)
 TEST = (9843,)
 
-SERVICE_LIST = YELLOW_LINE_SERVICES + ALL_BLUE_MOUNTAINS_SERVICES
+#SERVICE_LIST = YELLOW_LINE_SERVICES + ALL_BLUE_MOUNTAINS_SERVICES
 #SERVICE_LIST = ALL_BLUE_MOUNTAINS_SERVICES
+SERVICE_LIST = TEST
 
 LITHGOW_TO_CENTRAL_ORIGINS = ("Lithgow Station", "Mount Victoria Station", "Katoomba Station", "Springwood Station")
 CENTRAL_TO_LITHGOW_ORIGINS = ("Central Station", "Hornsby Station",)
@@ -64,8 +67,8 @@ def determine_line_id(svc_code, first_stop):
         elif first_stop in CENTRAL_TO_LITHGOW_ORIGINS:
             line_id = 2
         else:
-            print "Unable to determine trip direction because %s is not"\
-                  "a registered Origin on Blue Mountains line" % (first_stop,)
+            logging.error("Unable to determine trip direction because %s is not"\
+                  "a registered Origin on Blue Mountains line" % (first_stop,))
 
     elif (svc_code in YELLOW_LINE_SERVICES):
         if first_stop in PENRITH_TO_HORNSBY_ORIGINS:
@@ -73,12 +76,12 @@ def determine_line_id(svc_code, first_stop):
         elif first_stop in HORNSBY_TO_PENRITH_ORIGINS:
             line_id = 4
         else:
-            print "Unable to determine trip direction because %s is not"\
-                  "a registered Origin on the Yellow Line" % (first_stop,)
+            logging.error("Unable to determine trip direction because %s is not"\
+                  "a registered Origin on the Yellow Line" % (first_stop,))
 
     else:
-        print "Unable to determine trip direction because %s is not a"\
-              "registered Origin" % (first_stop,)
+        logging.error("Unable to determine trip direction because %s is not a"\
+              "registered Origin" % (first_stop,))
 
     return line_id
 
@@ -111,7 +114,7 @@ for elem in xp_stop_point(context):
 
     atcocode_station_map[atco_code] = station
 
-print "Created %s stations in %.2f secs" % (created_station_count, time.time() - start_time)
+logging.info("Created %s stations in %.2f secs" % (created_station_count, time.time() - start_time))
 
 interchange_station_count = 0
 interchange_relationship_count = 0
@@ -127,8 +130,8 @@ for station in Station.objects.all():
             interchange_relationship_count += 0
 
 
-print "Created %s interchange stations and %s relationships in %.2f secs" % \
-    (interchange_station_count, interchange_relationship_count, time.time() - start_time)
+logging.info("Created %s interchange stations and %s relationships in %.2f secs" % \
+    (interchange_station_count, interchange_relationship_count, time.time() - start_time))
 
 # Journey Pattern Sections
 #  (which contain 1 or more Journey Pattern Timing Links)
@@ -161,10 +164,10 @@ for elem in xp_journey_pattern_section(context):
     #print "JPS id: %s. From %s (%s) to %s (%s)" % \
     # (journey_pattern_sectionId, from_stop, atco_stop_map[from_stop][0], to_stop, atco_stop_map[to_stop][0])
 
-print "Found %s journey pattern timing links with %s sections in %.2f secs" % \
+logging.info("Found %s journey pattern timing links with %s sections in %.2f secs" % \
       (journey_pattern_timing_link_count,
        journey_pattern_section_count,
-       time.time() - start_time)
+       time.time() - start_time))
 
 # Vehicle Journey
 #  (which has a single Journey Pattern Section reference)
@@ -191,8 +194,8 @@ for e in xp_vehicle_journey(context):
     vehicle_journey_map[vehicle_journey_id] = (service_ref_id, line_ref_id, journey_pattern_ref_id, departure_time)
     vehicle_journey_count += 1
 
-print "Found %s vehicle journies in %.2f secs" % \
-      (vehicle_journey_count, time.time() - start_time)
+logging.info("Found %s vehicle journies in %.2f secs" % \
+      (vehicle_journey_count, time.time() - start_time))
 
 # Service
 #  (which contains a list of Journey Pattern Section references)
@@ -230,11 +233,11 @@ for e in xp_service(context):
             #  over past midnight, so for the sake of testing, let's drop any
             #  trip that starts after 8pm
             if departure_time_dt.time() > datetime.time(hour=20, minute=0):
-                print "Bailing on service code %s (%s to %s) because it starts late (%s)" %\
+                logging.info("Bailing on service code %s (%s to %s) because it starts late (%s)" %\
                       (service_code,
                        service_origin,
                        service_dest,
-                       departure_time_dt.strftime("%H:%M"))
+                       departure_time_dt.strftime("%H:%M")))
                 continue
 
             journey_pattern_timing_link_list = \
@@ -242,8 +245,8 @@ for e in xp_service(context):
             first_stop_name = atco_stop_map[int(journey_pattern_timing_link_list[0][0])][0]
             line_id = determine_line_id(service_code, first_stop_name)
             if line_id == -1:
-                print "Couldn't determine a line id for service code %s with "\
-                "first stop %s" % (service_code, first_stop_name)
+                logging.warn("Couldn't determine a line id for service code %s with "\
+                "first stop %s" % (service_code, first_stop_name))
                 continue
 
             # Check for duplicate trips by looking for TripStops on the same
@@ -253,34 +256,40 @@ for e in xp_service(context):
                     station=atcocode_station_map[int(journey_pattern_timing_link_list[0][0])],
                     departure_time=departure_time_dt)
             if dupe_tripstop_list:
-                print "Not inserting trip as duplicate already exists"\
+                logging.info("Not inserting trip as duplicate already exists"\
                       "(Trip: %s with TripStop: %s at %s)" %\
                       (dupe_tripstop_list[0].trip.id,
                        dupe_tripstop_list[0].station.short_name(),
-                       dupe_tripstop_list[0].departure_time)
+                       dupe_tripstop_list[0].departure_time))
                 continue
             else:
                 new_trip = Trip(timetable_type='WD',
                     line=Line.objects.get(id=line_id))
                 new_trip.save()
-                print "Created New Trip (%s) [service code %s] on line %s"\
+                logging.info("Created New Trip (%s) [service code %s] on line %s"\
                       "(%s to %s), running on %s" %\
                       (new_trip.id,
                        service_code,
                        new_trip.line.id,
                        service_origin,
                        service_dest,
-                       ", ".join(operating_days))
+                       ", ".join(operating_days)))
 
             stop_time = departure_time_dt
             departure_tripstop = None
             segment_count = 0
             tripstop_count = 0
             for from_stop_id, to_stop_id, run_time in journey_pattern_timing_link_list:
+                #logging.debug("Processing jptl: From %s, To %s, Run time %s" %
+                #    (from_stop_id, to_stop_id, run_time))
                 if departure_tripstop == None:
                     # This is the first TripStop point in the trip so we need
                     #  to setup the starting point
                     departure_station = atcocode_station_map[int(from_stop_id)]
+                    logging.debug("Initial tripstop: From %s (id %s) at %s (trip id %s)" %
+                        (departure_station.station_name,
+                         departure_station.id,
+                         departure_time_dt, new_trip.id))
                     departure_tripstop = TripStop(
                         departure_time=departure_time_dt,
                         trip=new_trip,
@@ -288,8 +297,12 @@ for e in xp_service(context):
                     departure_tripstop.save()
                     tripstop_count += 1
 
-                stop_time = departure_time_dt + datetime.timedelta(minutes=run_time)
+                stop_time += datetime.timedelta(minutes=run_time)
                 arrival_station = atcocode_station_map[int(to_stop_id)]
+                logging.debug("Arrival Tripstop: %s (id %s) at %s (trip id %s)" %
+                              (arrival_station.station_name,
+                               arrival_station.id,
+                               stop_time, new_trip.id))
                 arrival_tripstop = TripStop(
                     departure_time=stop_time,
                     trip=new_trip,
@@ -305,6 +318,7 @@ for e in xp_service(context):
 
                 departure_tripstop = arrival_tripstop
 
-            print "Added %s TripStops and %s Segments to Trip with Id %s (that"\
+            logging.info("Added %s TripStops and %s Segments to Trip with Id %s (that"\
                   "departs at %s)" % \
-                (tripstop_count, segment_count, new_trip.id, departure_time_dt)
+                (tripstop_count, segment_count, new_trip.id, departure_time_dt))
+            die
