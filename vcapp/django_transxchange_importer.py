@@ -321,4 +321,4 @@ for e in xp_service(context):
             logging.info("Added %s TripStops and %s Segments to Trip with Id %s (that"\
                   "departs at %s)" % \
                 (tripstop_count, segment_count, new_trip.id, departure_time_dt))
-            die
+
