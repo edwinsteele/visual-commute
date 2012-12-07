@@ -82,8 +82,7 @@ def extract_vehicle_journies(parsed_xml):
     vehicle_journey_dict = {}
     start_time = time.time()
     vehicle_journey_count = 0
-    for e in xp_vehicle_journey(parsed_xml):
-        vj = deepcopy(e)
+    for vj in map(deepcopy, xp_vehicle_journey(parsed_xml)):
         vehicle_journey_id = xp_vehicle_journey_code(vj)[0].text
         journey_pattern_ref_id = xp_journey_pattern_ref(vj)[0].text
         line_ref_id = int(xp_line_ref(vj)[0].text)
@@ -110,8 +109,7 @@ def extract_stations(parsed_xml):
 
     created_station_count = 0
     start_time = time.time()
-    for elem in xp_stop_point(parsed_xml):
-        stop_point = deepcopy(elem)
+    for stop_point in map(deepcopy, xp_stop_point(parsed_xml)):
         atco_code = int(xp_atco_code(stop_point)[0].text)
         stop_name = xp_common_name(stop_point)[0].text
         lon = float(xp_lon(stop_point)[0].text)
@@ -141,12 +139,9 @@ def extract_journey_pattern_sections(parsed_xml):
     journey_pattern_section_dict = {}
 
     start_time = time.time()
-    for elem in xp_journey_pattern_section(parsed_xml):
-        journey_pattern_section = deepcopy(elem)
-        journey_pattern_section_id = elem.attrib["id"]
+    for journey_pattern_section in map(deepcopy, xp_journey_pattern_section(parsed_xml)):
         journey_pattern_timing_link_list = []
-        for elem2 in xp_journey_pattern_timing_link(journey_pattern_section):
-            journey_pattern_timing_link = deepcopy(elem2)
+        for journey_pattern_timing_link in map(deepcopy, xp_journey_pattern_timing_link(journey_pattern_section)):
             from_stop = xp_from_stop_point(journey_pattern_timing_link)[0].text
             to_stop = xp_to_stop_point(journey_pattern_timing_link)[0].text
             # In the format PT[0-9]{1,}M
@@ -155,7 +150,7 @@ def extract_journey_pattern_sections(parsed_xml):
             journey_pattern_timing_link_list.append((from_stop, to_stop, run_time))
             journey_pattern_timing_link_count += 1
 
-        journey_pattern_section_dict[journey_pattern_section_id] = \
+        journey_pattern_section_dict[journey_pattern_section.attrib["id"]] = \
             journey_pattern_timing_link_list
         journey_pattern_section_count += 1
 
@@ -227,10 +222,10 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
     xp_service_origin = etree.XPath("//T:StandardService//T:Origin", namespaces=NSMAP)
     xp_service_dest = etree.XPath("//T:StandardService//T:Destination", namespaces=NSMAP)
     xp_journey_pattern = etree.XPath("//T:StandardService//T:JourneyPattern", namespaces=NSMAP)
+    #xp_journey_pattern_section_ref = etree.XPath("//T:StandardService//T:JourneyPattern//T:JourneyPatternSectionRefs", namespaces=NSMAP)
     xp_days_of_week = etree.XPath("//T:OperatingProfile//T:RegularDayType//T:DaysOfWeek//T:*", namespaces=NSMAP)
 
-    for e in xp_service(parsed_xml):
-        s = deepcopy(e)
+    for s in map(deepcopy, xp_service(parsed_xml)):
         service_code = int(xp_service_code(s)[0].text)
         # There are lots of repeated spaces in the service desc
         #service_desc = " ".join(xp_service_desc(s)[0].text.split())
@@ -263,6 +258,9 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
                 journey_pattern_timing_link_list = \
                     journey_pattern_section_dict[journey_pattern_ref_id]
                 first_stop_name = atcocode_station_map[int(journey_pattern_timing_link_list[0][0])].station_name
+                # One of these is (should be) redundant
+                #print "FSN ->%s<- SO ->%s<-" % (first_stop_name, service_origin)
+                #assert first_stop_name == service_origin
                 line_id = determine_line_id(service_code, first_stop_name)
                 if line_id == -1:
                     logging.warn("Couldn't determine a line id for service code %s"
@@ -300,18 +298,21 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
                 create_tripstops_and_segments(journey_pattern_timing_link_list,
                     atcocode_station_map, new_trip, departure_time_dt)
 
+def populate(transxchange_file, service_list):
+    """
+    Assumes empty tables, but should not add any repeat objects if
+     run over a populated database
+    """
+    # TODO - build lines automatically using Service->Lines->Line->LineName and possibly cross-check with Service->Description
+    context = etree.parse(transxchange_file)
 
-# TODO - how do I programatically drop the tables (and then load initial data)?
-# Parse the timetable data
-context = etree.parse(os.path.join(PATH_TO_DATA, "505_20090828.xml"))
+    # Map transxchange atcocode to station object
+    a_s_map = extract_stations(context)
+    create_interchange_stations(transxchange_constants.INTERCHANGE_STATION_MAP)
+    jps_dict = extract_journey_pattern_sections(context)
+    vj_dict = extract_vehicle_journies(context)
+    create_trips(context, service_list, vj_dict, a_s_map, jps_dict)
 
-# TODO - build lines automatically using Service->Lines->Line->LineName
-#  and possibly cross-check with Service->Description
-
-# Map transxchange atcocode to station object
-a_s_map = extract_stations(context)
-create_interchange_stations(transxchange_constants.INTERCHANGE_STATION_MAP)
-jps_dict = extract_journey_pattern_sections(context)
-vj_dict = extract_vehicle_journies(context)
-create_trips(context, transxchange_constants.TEST_SERVICES, vj_dict, a_s_map, jps_dict)
+if __name__ == '__main__':
+    populate(os.path.join(PATH_TO_DATA, "505_20090828.xml"), transxchange_constants.TEST_SERVICES)
 
