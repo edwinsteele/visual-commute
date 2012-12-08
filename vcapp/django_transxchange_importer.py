@@ -221,8 +221,7 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
     #xp_service_desc = etree.XPath("//T:Description", namespaces=NSMAP)
     xp_service_origin = etree.XPath("//T:StandardService//T:Origin", namespaces=NSMAP)
     xp_service_dest = etree.XPath("//T:StandardService//T:Destination", namespaces=NSMAP)
-    xp_journey_pattern = etree.XPath("//T:StandardService//T:JourneyPattern", namespaces=NSMAP)
-    #xp_journey_pattern_section_ref = etree.XPath("//T:StandardService//T:JourneyPattern//T:JourneyPatternSectionRefs", namespaces=NSMAP)
+    xp_journey_pattern_section_ref = etree.XPath("//T:StandardService//T:JourneyPattern//T:JourneyPatternSectionRefs", namespaces=NSMAP)
     xp_days_of_week = etree.XPath("//T:OperatingProfile//T:RegularDayType//T:DaysOfWeek//T:*", namespaces=NSMAP)
 
     for s in map(deepcopy, xp_service(parsed_xml)):
@@ -231,18 +230,22 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
         #service_desc = " ".join(xp_service_desc(s)[0].text.split())
         service_origin = xp_service_origin(s)[0].text
         service_dest = xp_service_dest(s)[0].text
-        # abbreviated to three letters
+        # Abbreviate to three letters. Tag contains namespace e.g.
+        # '{http://www.transxchange.org.uk/}Monday'
         operating_days = [day.tag[len(TRANSXCHANGE):][:3] for day in xp_days_of_week(s)]
         if service_code in service_list:
-            # FIXME - get the journey pattern section refs from the actual
-            #  jpsr element, not from the id of the journey pattern element
-            #  even though they're the same in the example file
-            for vehicle_journey_ref in xp_journey_pattern(s):
-                #service_ref_id =  vehicle_journey_dict[vehicle_journey_ref.attrib["id"]][0]
+            for journey_pattern_section_ref in [x.text for x in xp_journey_pattern_section_ref(s)]:
+                # Note: The JourneyPattern and JourneyPatternSectionRefs elements
+                #  are a bit strange. The id of the JP element always seems to
+                #  match the text inside the JPSR element, even though it seems
+                #  redundant. We get JPSRs from the text, because it looks most
+                #  correct, but who's to say that the JPSR contents might not be
+                #  something else. See reference line below:
+                # <JourneyPattern id="38125307"><JourneyPatternSectionRefs>38125307</JourneyPatternSectionRefs></JourneyPattern>
                 #line_ref_id =  vehicle_journey_dict[vehicle_journey_ref.attrib["id"]][1]
-                journey_pattern_ref_id =  vehicle_journey_dict[vehicle_journey_ref.attrib["id"]][2]
+                journey_pattern_ref_id =  vehicle_journey_dict[journey_pattern_section_ref][2]
                 departure_time_dt = datetime.datetime.strptime(
-                    vehicle_journey_dict[vehicle_journey_ref.attrib["id"]][3], "%H:%M:%S")
+                    vehicle_journey_dict[journey_pattern_section_ref][3], "%H:%M:%S")
                 # FIXME - we can't handle time comparisons when the system rolls
                 #  over past midnight, so for the sake of testing, let's drop any
                 #  trip that starts after 8pm
@@ -255,25 +258,25 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
                         departure_time_dt.strftime("%H:%M"))
                     continue
 
-                journey_pattern_timing_link_list = \
-                    journey_pattern_section_dict[journey_pattern_ref_id]
-                first_stop_name = atcocode_station_map[int(journey_pattern_timing_link_list[0][0])].station_name
+                #journey_pattern_timing_link_list = \
+                #    journey_pattern_section_dict[journey_pattern_ref_id]
+                first_station = atcocode_station_map[int(journey_pattern_section_dict[journey_pattern_ref_id][0][0])]
                 # One of these is (should be) redundant
                 #print "FSN ->%s<- SO ->%s<-" % (first_stop_name, service_origin)
-                #assert first_stop_name == service_origin
-                line_id = determine_line_id(service_code, first_stop_name)
+                #assert first_station.station_name == service_origin
+                line_id = determine_line_id(service_code, first_station.station_name)
                 if line_id == -1:
                     logging.warn("Couldn't determine a line id for service code %s"
                                  "with first stop %s",
                         service_code,
-                        first_stop_name)
+                        first_station.station_name)
                     continue
 
                 # Check for duplicate trips by looking for TripStops on the same
                 # line starting with the stop_time at the same station
                 dupe_tripstop_list = TripStop.objects.filter(
                     trip__line__id=line_id,
-                    station=atcocode_station_map[int(journey_pattern_timing_link_list[0][0])],
+                    station=first_station,
                     departure_time=departure_time_dt)
                 if dupe_tripstop_list:
                     logging.info("Not inserting trip as duplicate already exists"
@@ -295,7 +298,7 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
                         service_dest,
                         ", ".join(operating_days))
 
-                create_tripstops_and_segments(journey_pattern_timing_link_list,
+                create_tripstops_and_segments(journey_pattern_section_dict[journey_pattern_ref_id],
                     atcocode_station_map, new_trip, departure_time_dt)
 
 def populate(transxchange_file, service_list):
