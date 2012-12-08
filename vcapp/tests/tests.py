@@ -5,6 +5,8 @@ from models import Station, Trip
 __author__ = 'esteele'
 
 class StationTestCase(TestCase):
+    fixtures = ['testdata3.json']
+
     def setUp(self):
         self.blaxland_station = Station.objects.get(id=252)
         self.glenbrook_station = Station.objects.get(id=132)
@@ -19,7 +21,7 @@ class StationTestCase(TestCase):
         return self.skipTest("Station Find Closest Segment Not implemented yet")
 
 class TripTestCase(TestCase):
-    fixtures = ['testdata.json']
+    fixtures = ['testdata3.json']
 
     def setUp(self):
         self.a_trip = Trip.objects.get(id=1)
