@@ -3,7 +3,7 @@ from vcapp import django_transxchange_importer
 
 __author__ = 'esteele'
 
-class DjangoTransxchangeImporter(TestCase):
+class DjangoTransxchangeImporterTestCase(TestCase):
 
     #@classmethod
     #def setUpClass(cls):
