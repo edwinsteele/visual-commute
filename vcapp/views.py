@@ -22,6 +22,10 @@ class TripViewClass(TemplateView):
             self.stop_matrix.append((s.departure_tripstop.station.station_name,
                 s.trip.id,
                 s.departure_tripstop.departure_time))
+        else:
+            self.stop_matrix.append((s.arrival_tripstop.station.station_name,
+                                     s.trip.id,
+                                     s.arrival_tripstop.departure_time))
 
     def get_stop_matrix(self):
         station_list = list(set([station for station, dummy1, dummy2 in
