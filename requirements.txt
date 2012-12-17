@@ -3,6 +3,12 @@ South==0.7.6
 coverage==3.6b1
 distribute==0.6.28
 django-debug-toolbar==0.9.4
+django-nose==1.1
+logilab-astng==0.24.1
+logilab-common==0.58.3
 lxml==3.0.1
 networkx==1.7
+nose==1.2.1
+numpy==1.6.2
+pylint==0.26.0
 wsgiref==0.1.2
