@@ -61,11 +61,15 @@ class TripTestCase(TestCase):
         self.assertEqual(self.a_trip.get_end_hour(), 15)
         self.assertEqual(s[0].departure_tripstop.station.short_name(),
             "Katoomba")
+        self.assertEqual(s[0].arrival_tripstop.station.short_name(),
+            "Leura")
+        self.assertEqual(s[len(s) - 1].departure_tripstop.station.short_name(),
+            "Strathfield")
         self.assertEqual(s[len(s) - 1].arrival_tripstop.station.short_name(),
             "Central")
 
     def test_trip_distance(self):
-        self.assertAlmostEqual(self.a_trip.get_trip_distance(), 0.08228760)
+        self.assertAlmostEqual(self.a_trip.get_trip_distance(), 0.99622666097)
 
 class StationTestCase(TestCase):
     fixtures = ['populated.json']
