@@ -13,7 +13,7 @@ TRANSXCHANGE = "{%s}" % TRANSXCHANGE_NAMESPACE
 NSMAP = {"T" : TRANSXCHANGE_NAMESPACE}
 
 
-def determine_line_id(svc_code, first_stop):
+def determine_line_id(svc_code, first_stop_name):
     """
     The first stop is indicative of which direction the train is
      going and thus which line it is on. This info isn't provided
@@ -21,26 +21,26 @@ def determine_line_id(svc_code, first_stop):
     """
     line_id = -1
     if svc_code in transxchange_constants.ALL_BLUE_MOUNTAINS_SERVICES:
-        if first_stop in transxchange_constants.LITHGOW_TO_CENTRAL_ORIGINS:
+        if first_stop_name in transxchange_constants.LITHGOW_TO_CENTRAL_ORIGINS:
             line_id = 1
-        elif first_stop in transxchange_constants.CENTRAL_TO_LITHGOW_ORIGINS:
+        elif first_stop_name in transxchange_constants.CENTRAL_TO_LITHGOW_ORIGINS:
             line_id = 2
         else:
             logging.error("Unable to determine trip direction because %s is not"
-                  "a registered Origin on Blue Mountains line", first_stop)
+                  "a registered Origin on Blue Mountains line", first_stop_name)
 
     elif svc_code in transxchange_constants.YELLOW_LINE_SERVICES:
-        if first_stop in transxchange_constants.PENRITH_TO_HORNSBY_ORIGINS:
+        if first_stop_name in transxchange_constants.PENRITH_TO_HORNSBY_ORIGINS:
             line_id = 3
-        elif first_stop in transxchange_constants.HORNSBY_TO_PENRITH_ORIGINS:
+        elif first_stop_name in transxchange_constants.HORNSBY_TO_PENRITH_ORIGINS:
             line_id = 4
         else:
             logging.error("Unable to determine trip direction because %s is not"
-                  "a registered Origin on the Yellow Line", first_stop)
+                  "a registered Origin on the Yellow Line", first_stop_name)
 
     else:
         logging.error("Unable to determine trip direction because %s is not a"
-              "registered Origin", first_stop)
+              "registered Origin", first_stop_name)
 
     return line_id
 
@@ -52,11 +52,12 @@ def create_interchange_stations(interchange_station_map):
     # Setup Interchange Stations
     for station in Station.objects.all():
         if station.station_name in interchange_station_map:
-            interchange_station_count += 0
+            interchange_station_count += 1
             for line_id in interchange_station_map[station.station_name]:
-                InterchangeStation.objects.create(station=station,
+                created, dummy = InterchangeStation.objects.get_or_create(station=station,
                     line=Line.objects.get(id=line_id))
-                interchange_relationship_count += 0
+                if created:
+                    interchange_relationship_count += 1
 
     logging.info("Created %s interchange stations and %s relationships in %.2f secs",
         interchange_station_count,
@@ -178,15 +179,19 @@ def create_tripstops_and_segments(journey_pattern_timing_link_list, atcocode_sta
                 departure_station.id,
                 departure_time_dt, this_trip.id)
             departure_tripstop = TripStop(
-                departure_time=departure_time_dt,
+                departure_time=departure_time_dt.time(),
                 trip=this_trip,
                 station=departure_station)
             departure_tripstop.save()
             tripstop_count += 1
 
-        # Departure time isn't always the same as arrival time, but that's what we're using
+        # Departure time isn't always the same as arrival time, but that's what
+        # we're using and it's good enough for the moment
+        dep_time_with_dummy_date = datetime.datetime.combine(datetime.date(1, 1, 1),
+                    departure_tripstop.departure_time) + \
+                 datetime.timedelta(minutes=run_time)
         arrival_tripstop = TripStop(
-            departure_time=departure_tripstop.departure_time + datetime.timedelta(minutes=run_time),
+            departure_time=dep_time_with_dummy_date.time(),
             trip=this_trip,
             station=atcocode_station_map[int(to_stop_id)])
         arrival_tripstop.save()
@@ -203,7 +208,7 @@ def create_tripstops_and_segments(journey_pattern_timing_link_list, atcocode_sta
         segment_count += 1
         departure_tripstop = arrival_tripstop
 
-    logging.info("Added %s TripStops and %s Segments to Trip with Id %s"
+    logging.info("Added %s TripStops and %s Segments to Trip (id %s) "
                  "that departs at %s)",
         tripstop_count,
         segment_count,
@@ -250,7 +255,7 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
                 #  over past midnight, so for the sake of testing, let's drop any
                 #  trip that starts after 8pm
                 if departure_time_dt.time() > datetime.time(hour=20, minute=0):
-                    logging.info("Bailing on service code %s (%s to %s) because"
+                    logging.debug("Bailing on service code %s (%s to %s) because"
                                  "it starts late (%s)",
                         service_code,
                         service_origin,
@@ -318,4 +323,3 @@ def populate(transxchange_file, service_list):
 
 if __name__ == '__main__':
     populate(os.path.join(PATH_TO_DATA, "505_20090828.xml"), transxchange_constants.TEST_SERVICES)
-
