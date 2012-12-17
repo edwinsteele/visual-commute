@@ -45,22 +45,26 @@ def determine_line_id(svc_code, first_stop_name):
     return line_id
 
 def create_interchange_stations(interchange_station_map):
-    interchange_station_count = 0
     interchange_relationship_count = 0
 
     start_time = time.time()
     # Setup Interchange Stations
     for station in Station.objects.all():
         if station.station_name in interchange_station_map:
-            interchange_station_count += 1
             for line_id in interchange_station_map[station.station_name]:
-                created, dummy = InterchangeStation.objects.get_or_create(station=station,
-                    line=Line.objects.get(id=line_id))
+                dummy, created = InterchangeStation.objects.get_or_create(
+                    line=Line.objects.get(id=line_id),
+                    station=station,
+                )
                 if created:
+                    logging.debug("Created interchange rel for %s on line %s",
+                        station.station_name, line_id)
                     interchange_relationship_count += 1
+                else:
+                    logging.debug("Ignored interchange rel for %s on line %s",
+                        station.station_name, line_id)
 
-    logging.info("Created %s interchange stations and %s relationships in %.2f secs",
-        interchange_station_count,
+    logging.info("Created %s interchange relationships in %.2f secs",
         interchange_relationship_count,
         time.time() - start_time)
 
