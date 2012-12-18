@@ -3,7 +3,7 @@ from vcapp import django_transxchange_importer
 from vcapp import transxchange_constants
 from vcapp.models import InterchangeStation, Line, Segment, Station, Trip, TripStop
 
-import json, os, subprocess
+import os, subprocess
 
 # TODO - fix logging so that transxchange importer is quiet
 
@@ -51,9 +51,27 @@ class TripTestCase(TestCase):
     def setUp(self):
         self.a_trip = Trip.objects.get(id=1)
 
-    def test_get_segments(self):
-        s = self.a_trip.get_segments()
-        self.assertEqual(len(s), 21)
+    def test_segments_are_in_correct_time_order(self):
+        for t in Trip.objects.all():
+            prev_segment = None
+            for this_segment in t.get_segments():
+                # Departure time is before Arrival time in the same segment
+                self.assertLess(this_segment.departure_tripstop.departure_time,
+                    this_segment.arrival_tripstop.departure_time)
+                if prev_segment:
+                    # Departure time in the previous arrival tripstop is equal to
+                    # the departure time in the departure tripstop in this segment
+                    self.assertEqual(prev_segment.arrival_tripstop.departure_time,
+                        this_segment.departure_tripstop.departure_time)
+
+                prev_segment = this_segment
+
+    def test_segment_count_per_trip(self):
+        self.assertListEqual(
+            [len(t.get_segments()) for t in Trip.objects.all()],
+            [21, 17, 12, 21, 22, 27]
+        )
+
 
     def test_start_and_end_points(self):
         s = self.a_trip.get_segments()
