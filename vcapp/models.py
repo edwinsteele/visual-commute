@@ -66,8 +66,31 @@ class Trip(models.Model):
                     self.line.id)
 
     def get_segments(self):
-        # FIXME - we need to order the segments explicitly... order do we given we do the initial load?
+        """
+        Segments are loaded in increasing time order, so the implicit ordering
+        is actually the ordering that he wanted
+        """
         return self.segment_set.all()
+
+    def get_sorted_station_list(self):
+        station_list = []
+        seg = None
+        for seg in self.get_segments():
+            station_list.append(seg.departure_tripstop.station.station_name)
+
+        if seg:
+            station_list.append(seg.arrival_tripstop.station.station_name)
+
+        return station_list
+
+    def merge_sorted_station_list(self, ordered_station_list):
+        """
+        ordered_station_list is likely to be longer (and thus provide more
+         context) than the station list on this trip so use that as the basis
+         for the correct ordering)
+        """
+        pass
+
 
     def get_trip_distance(self):
         return sum([segment.segment_length() for segment in self.get_segments()])

@@ -16,22 +16,25 @@ class TripViewClass(TemplateView):
 
     def initialise_stop_matrix(self):
         self.stop_matrix = []
+        self.trip_list = []
 
     def add_trip_to_stop_matrix(self, trip):
+        self.trip_list.append(trip)
+        s = None
         for s in trip.get_segments():
             self.stop_matrix.append((s.departure_tripstop.station.station_name,
                 s.trip.id,
                 s.departure_tripstop.departure_time))
-        else:
+        # Append the final arrival station (if there are any segments)
+        if s:
             self.stop_matrix.append((s.arrival_tripstop.station.station_name,
                                      s.trip.id,
                                      s.arrival_tripstop.departure_time))
 
     def get_stop_matrix(self):
-        station_list = list(set([station for station, dummy1, dummy2 in
-                                self.stop_matrix]))
-        trip_list = list(set([trip_id for dummy1, trip_id, dummy2 in
-                                self.stop_matrix]))
+        station_list = []
+        for t in self.trip_list:
+            station_list.extend(t.get_sorted_station_list())
 
         # FIXME - sort the station list so that it appears in the order that
         #  a train would encounter it
@@ -41,9 +44,9 @@ class TripViewClass(TemplateView):
             sparse[station] = {}
 
         # Initialise with empty value
-        for trip_id in trip_list:
+        for t in self.trip_list:
             for station in station_list:
-                sparse[station][trip_id] = None
+                sparse[station][t.id] = None
 
         # Then populate properly
         for station, trip_id, departure_time in self.stop_matrix:
