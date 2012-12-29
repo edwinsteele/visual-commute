@@ -10,6 +10,7 @@ The timetable itself is a collection of trips on a single Line (usually)
 from django.db import models
 import geometry
 import datetime as dt
+import logging
 
 class Station(models.Model):
     station_name = models.CharField(max_length=50)
@@ -41,6 +42,24 @@ class Line(models.Model):
     def __unicode__(self):
         return u"%s (id %s)" % (self.line_name, self.id)
 
+    def index_on_line(self, station_name):
+        idx = StationLineOrder.objects.filter(station__station_name=station_name,
+            line=self.id)
+        logging.debug("Index on line for %s returns %s",
+            station_name, idx[0].line_index)
+        return idx[0].line_index
+
+
+class StationLineOrder(models.Model):
+    station = models.ForeignKey("Station")
+    line = models.ForeignKey("Line")
+    # Starts at 1, with 1 being the station at the start of the trip
+    line_index = models.PositiveIntegerField()
+
+    def __unicode__(self):
+        return u"StationLineOrder: Station %s with index %s on line %s" %\
+               (self.station, self.line_index, self.line)
+
 
 class Trip(models.Model):
     """
@@ -71,26 +90,6 @@ class Trip(models.Model):
         is actually the ordering that he wanted
         """
         return self.segment_set.all()
-
-    def get_sorted_station_list(self):
-        station_list = []
-        seg = None
-        for seg in self.get_segments():
-            station_list.append(seg.departure_tripstop.station.station_name)
-
-        if seg:
-            station_list.append(seg.arrival_tripstop.station.station_name)
-
-        return station_list
-
-    def merge_sorted_station_list(self, ordered_station_list):
-        """
-        ordered_station_list is likely to be longer (and thus provide more
-         context) than the station list on this trip so use that as the basis
-         for the correct ordering)
-        """
-        pass
-
 
     def get_trip_distance(self):
         return sum([segment.segment_length() for segment in self.get_segments()])
@@ -165,26 +164,23 @@ class Segment(models.Model):
             self.get_trip_id())
 
     def add_as_digraph_edge(self, dg, ignore_lines):
-        if ignore_lines:
-            dep_name = self.departure_tripstop.station.station_name
-            arv_name = self.arrival_tripstop.station.station_name
-        else:
-            dep_name = self.get_departure_point_name()
-            arv_name = self.get_arrival_point_name()
-
-        if dep_name not in dg:
-            dg.add_node(dep_name, {"tripId":self.id, "pist":self.departure_tripstop})
-        if arv_name not in dg:
-            dg.add_node(arv_name, {"tripId":self.id, "pist":self.arrival_tripstop})
+        if self.departure_tripstop.station not in dg:
+            dg.add_node(self.departure_tripstop.station)
+        if self.arrival_tripstop.station not in dg:
+            dg.add_node(self.arrival_tripstop.station)
 
         dtdt = dt.datetime
         duration_time_delta = \
             dtdt.combine(dtdt.today(), self.arrival_tripstop.departure_time) - \
             dtdt.combine(dtdt.today(), self.departure_tripstop.departure_time)
         edge_weight = duration_time_delta.seconds/60
-        #print "Adding edge from '%s' to '%s' with weight %s" % (dep_name, arv_name, edge_weight)
-        dg.add_edge(dep_name, arv_name, weight=edge_weight)
-
+        logging.info("Adding edge from '%s' to '%s' with weight %s",
+            self.departure_tripstop.station.short_name(),
+            self.arrival_tripstop.station.short_name(),
+            edge_weight)
+        dg.add_edge(self.departure_tripstop.station,
+            self.arrival_tripstop.station,
+            weight=edge_weight)
 
     def segment_length(self):
         return self.departure_tripstop.station.distance_from(
@@ -197,4 +193,3 @@ class InterchangeStation(models.Model):
 
     def __unicode__(self):
         return u"Interchange Station %s on line %s" % (self.station, self.line)
-

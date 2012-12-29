@@ -2,7 +2,6 @@ from django.http import HttpResponse
 
 from django.views.generic.base import TemplateView
 from vcapp.models import Trip
-from collections import OrderedDict
 
 import logging
 
@@ -32,33 +31,46 @@ class TripViewClass(TemplateView):
                                      s.arrival_tripstop.departure_time))
 
     def get_stop_matrix(self):
-        station_list = []
-        for t in self.trip_list:
-            station_list.extend(t.get_sorted_station_list())
+        combined_sorted_station_list = self.get_ordered_station_list()
 
-        # FIXME - sort the station list so that it appears in the order that
-        #  a train would encounter it
         # Create a sparse matrix
-        sparse = OrderedDict()
-        for station in station_list:
+        sparse = {}
+        for station in combined_sorted_station_list:
             sparse[station] = {}
 
         # Initialise with empty value
         for t in self.trip_list:
-            for station in station_list:
-                sparse[station][t.id] = None
+            for station in combined_sorted_station_list:
+                logging.debug("Inserting empty for trip %s station %s", t.id, station)
+                sparse[station][str(t.id)] = None
 
         # Then populate properly
         for station, trip_id, departure_time in self.stop_matrix:
-            sparse[station][trip_id] = departure_time
+            logging.debug("Inserting proper for trip %s station %s", trip_id, station)
+            sparse[station][str(trip_id)] = departure_time
 
-        s2 = OrderedDict()
-        for station in sparse.keys():
-            s2[station] = []
-            for trip_id in sparse[station].keys():
-                s2[station].append(sparse[station][trip_id])
+        s2 = []
+        for station in combined_sorted_station_list:
+            dep_time_list = []
+            for dep_time in sparse[station].itervalues():
+                dep_time_list.append(dep_time)
+            s2.append([station, dep_time_list])
 
+        logging.info("Sparse is %s", sparse)
+        logging.info("S2 is %s", s2)
         return s2
+
+    def get_ordered_station_list(self):
+        station_set = set()
+        for t in self.trip_list:
+            seg = None
+            for seg in t.get_segments():
+                station_set.add(seg.departure_tripstop.station.station_name)
+            if seg:
+                station_set.add(seg.arrival_tripstop.station.station_name)
+
+        line = self.trip_list[0].line
+        return sorted(list(station_set), key=line.index_on_line)
 
     def get(self, request, *args, **kwargs):
         if "trip_id" in kwargs:
@@ -73,8 +85,13 @@ class TripViewClass(TemplateView):
         self.initialise_stop_matrix()
         for t in trip_list:
             self.add_trip_to_stop_matrix(t)
-        sparse = self.get_stop_matrix()
-        context = {"trip_list": trip_list,
-                   "sparse": sparse,}
+        z = [t.id for t in trip_list]
+        matrix = self.get_stop_matrix()
+        osl = self.get_ordered_station_list()
+        logging.info(osl)
+        context = {"trip_list": z,
+                   "sparse": matrix,
+                   "ordered_station_list": osl,
+        }
         return self.render_to_response(context)
 

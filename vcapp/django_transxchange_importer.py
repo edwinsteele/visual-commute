@@ -2,8 +2,11 @@ from lxml import etree
 from copy import deepcopy
 import datetime, os, time
 from vcapp import transxchange_constants
+import networkx
+from networkx.algorithms import topological_sort
 
-from vcapp.models import InterchangeStation, Line, Segment, Station, Trip, TripStop
+from vcapp.models import InterchangeStation, Line, Segment, Station, \
+    StationLineOrder, Trip, TripStop
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
 
@@ -310,6 +313,33 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
                 create_tripstops_and_segments(journey_pattern_section_dict[journey_pattern_ref_id],
                     atcocode_station_map, new_trip, departure_time_dt)
 
+def get_stations_on_trips_in_order(trip_list):
+    # This could easily live on the Line object
+    dg = networkx.DiGraph()
+    for t in trip_list:
+        for s in t.get_segments():
+            s.add_as_digraph_edge(dg, ignore_lines=True)
+
+    return topological_sort(dg)
+
+def create_trip_ordering():
+    start_time = time.time()
+    slo_count = 0
+
+    for l in Line.objects.all():
+        line_index = 1
+        for station in get_stations_on_trips_in_order(l.trip_set.all()):
+            slo = StationLineOrder(station=station,
+                line=l,
+                line_index=line_index)
+            slo.save()
+            line_index += 1
+            slo_count += 1
+
+    logging.info("Created %s StationLineOrder objects in %.2f secs",
+        slo_count, time.time() - start_time)
+
+
 def populate(transxchange_file, service_list):
     """
     Assumes empty tables, but should not add any repeat objects if
@@ -324,6 +354,7 @@ def populate(transxchange_file, service_list):
     jps_dict = extract_journey_pattern_sections(context)
     vj_dict = extract_vehicle_journies(context)
     create_trips(context, service_list, vj_dict, a_s_map, jps_dict)
+    create_trip_ordering()
 
 if __name__ == '__main__':
     populate(os.path.join(PATH_TO_DATA, "505_20090828.xml"), transxchange_constants.TEST_SERVICES)
