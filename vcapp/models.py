@@ -8,6 +8,7 @@ The timetable itself is a collection of trips on a single Line (usually)
 """
 
 from django.db import models
+import vcapp.managers
 import geometry
 import datetime as dt
 import logging
@@ -69,6 +70,7 @@ class Trip(models.Model):
     )
     timetable_type = models.CharField(max_length=2, choices=TIMETABLE_TYPE_CHOICES)
     line = models.ForeignKey('Line')
+    objects = vcapp.managers.TripManager()
 
     def __unicode__(self):
         if self.get_segments():
