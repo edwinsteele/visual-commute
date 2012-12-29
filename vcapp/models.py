@@ -45,8 +45,6 @@ class Line(models.Model):
     def index_on_line(self, station_name):
         idx = StationLineOrder.objects.filter(station__station_name=station_name,
             line=self.id)
-        logging.debug("Index on line for %s returns %s",
-            station_name, idx[0].line_index)
         return idx[0].line_index
 
 
