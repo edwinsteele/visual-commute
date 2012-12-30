@@ -1,0 +1,56 @@
+{% extends "vcapp/base.html" %}
+
+{% block title %}graphical view of trip{% endblock %}
+{% block content %}
+from {{ from_station.station_name }} to {{ to_station.station_name }}
+    within time range {{ from_hour }} to {{ to_hour }}
+
+<canvas id="{{ abbrev }}canvas{{ canvas_width }}X{{ canvas_height }}"
+        width="{{ canvas_width }}" height="{{ canvas_height }}">
+    <p>Your browser doesn't support canvas.</p>
+</canvas>
+<script type="text/javascript">
+
+function drawSegmentJS(context, departureXPoint, departureYPoint, arrivalXPoint, arrivalYPoint, lineColour, bulletColour)
+{
+    context.save();
+    context.strokeStyle = lineColour;
+    context.fillStyle = bulletColour;
+    context.beginPath();
+    context.arc(departureXPoint, departureYPoint, 2, 0, 359, true);
+    context.closePath();
+    context.fill();
+    context.beginPath();
+    context.moveTo(departureXPoint,departureYPoint);
+    context.lineTo(arrivalXPoint,arrivalYPoint);
+    context.stroke();
+    context.beginPath();
+    context.arc(arrivalXPoint, arrivalYPoint, 2, 0, 359, true);
+    context.closePath();
+    context.fill();
+    context.restore();
+}
+
+function drawHourGridLineJS(context, startX, startY, endX, endY)
+{
+    context.save();
+    context.strokeStyle = '#ECF1EF';
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(endX, endY);
+    context.stroke();
+    context.restore();
+}
+
+var drawingCanvas = document.getElementById('{{ abbrev }}canvas{{ canvas_width }}X{{ canvas_height }}');
+var ctx = drawingCanvas.getContext('2d');
+ctx.save();
+ctx.fillStyle = '#E6E6E6';
+ctx.fillRect(0,0,{{ canvas_width }},{{ canvas_height }});
+ctx.restore();
+// Preserve the original context
+ctx.save();
+ctx.font = '{{ text_height }}pt Arial';
+
+</script>
+{% endblock %}

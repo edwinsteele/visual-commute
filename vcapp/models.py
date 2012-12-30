@@ -89,7 +89,7 @@ class Trip(models.Model):
         Segments are loaded in increasing time order, so the implicit ordering
         is actually the ordering that he wanted
         """
-        return self.segment_set.all()
+        return self.segment_set.select_related().all()
 
     def get_trip_distance(self):
         return sum([segment.segment_length() for segment in self.get_segments()])

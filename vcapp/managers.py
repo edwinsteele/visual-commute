@@ -4,6 +4,9 @@ from django.db import models
 class TripManager(models.Manager):
     index_on_line_cache = {}
 
+    def get_max_trip_distance(self, trip_list):
+        return reduce(max, [t.get_trip_distance() for t in trip_list], 0)
+
     def get_line_cache(self, line_id):
         if line_id not in self.index_on_line_cache:
             from vcapp.models import StationLineOrder
