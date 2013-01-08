@@ -1,0 +1,9 @@
+{% extends "vcapp/base.html" %}
+
+{% block title %}vcapp home{% endblock %}
+{% block content %}
+    <ul>
+    <li><a href="/vcapp/trip/1,4">Text timetable for trip 1 & 4</a></li>
+    <li><a href="/vcapp/trip_graph/1/?from_station_id=253&to_station_id=112&from_hour=12&to_hour=16&canvas_width=320&canvas_height=240">Graphical for trip 1</li>
+    </ul>
+{% endblock %}

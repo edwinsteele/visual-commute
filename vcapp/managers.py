@@ -1,8 +1,15 @@
 
 from django.db import models
 
+
 class TripManager(models.Manager):
     index_on_line_cache = {}
+
+    def get_all_stations_in_trips(self, trip_list):
+        matrix = self.get_stop_matrix(trip_list)
+        ordered_station_list = [station for station, dep_time_list in
+                                matrix]
+        return ordered_station_list
 
     def get_max_trip_distance(self, trip_list):
         return reduce(max, [t.get_trip_distance() for t in trip_list], 0)
@@ -12,7 +19,7 @@ class TripManager(models.Manager):
             from vcapp.models import StationLineOrder
             d = {}
             for slo in StationLineOrder.objects.select_related().filter(line=line_id):
-                d[slo.station.station_name] = slo.line_index
+                d[slo.station] = slo.line_index
             self.index_on_line_cache[line_id] = d
 
         return self.index_on_line_cache[line_id]
@@ -24,19 +31,19 @@ class TripManager(models.Manager):
         for t in trip_list:
             seg = None
             for seg in t.segment_set.select_related().all():
-                if seg.departure_tripstop.station.station_name not in sparse:
-                    sparse[seg.departure_tripstop.station.station_name] = {}
+                if seg.departure_tripstop.station not in sparse:
+                    sparse[seg.departure_tripstop.station] = {}
 
-                sparse[seg.departure_tripstop.station.station_name][seg.trip_id] =\
+                sparse[seg.departure_tripstop.station][seg.trip_id] =\
                     seg.departure_tripstop.departure_time
-                station_set.add(seg.departure_tripstop.station.station_name)
+                station_set.add(seg.departure_tripstop.station)
             # Append the final arrival station (if there are any segments)
             if seg:
-                if seg.arrival_tripstop.station.station_name not in sparse:
-                    sparse[seg.arrival_tripstop.station.station_name] = {}
-                sparse[seg.arrival_tripstop.station.station_name][seg.trip_id] =\
+                if seg.arrival_tripstop.station not in sparse:
+                    sparse[seg.arrival_tripstop.station] = {}
+                sparse[seg.arrival_tripstop.station][seg.trip_id] =\
                     seg.arrival_tripstop.departure_time
-                station_set.add(seg.arrival_tripstop.station.station_name)
+                station_set.add(seg.arrival_tripstop.station)
 
         # Assumes all of the trips are on the same line... do we want to accept
         #  that or do we reject at a higher level?

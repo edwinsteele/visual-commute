@@ -6,9 +6,9 @@
     </div>
 
 <table border="1">
-{% for station_name, dep_time_list in sparse %}
+{% for station, dep_time_list in sparse %}
     <tr>
-        <td>{{ station_name }}</td>
+        <td>{{ station.station_name }}</td>
         {% for dep_time in dep_time_list %}
             <td>{% if dep_time %}{{ dep_time }}{% else %}-{% endif %}</td>
         {% endfor %}

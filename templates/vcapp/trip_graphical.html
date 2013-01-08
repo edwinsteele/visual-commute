@@ -5,6 +5,7 @@
 from {{ from_station.station_name }} to {{ to_station.station_name }}
     within time range {{ from_hour }} to {{ to_hour }}
 
+<br>
 <canvas id="{{ abbrev }}canvas{{ canvas_width }}X{{ canvas_height }}"
         width="{{ canvas_width }}" height="{{ canvas_height }}">
     <p>Your browser doesn't support canvas.</p>
@@ -52,5 +53,8 @@ ctx.restore();
 ctx.save();
 ctx.font = '{{ text_height }}pt Arial';
 
+// Start extra content string
+{{ extra_content_str|safe }}
+// End extra content string
 </script>
 {% endblock %}
