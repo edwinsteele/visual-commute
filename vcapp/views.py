@@ -71,13 +71,9 @@ class TripViewGraphicalClass(TemplateView):
 
             self.station_x_axis_point_map[departure_station] = \
                 x_point_of_departure_station
-            x_scaling_factor = (self.canvas_width -
-                self.GRAPH_BORDER_PADDING_LEFT_PX -
-                self.GRAPH_BORDER_PADDING_RIGHT_PX) / \
-                               Trip.objects.get_max_trip_distance(self.trip_list)
             x_point_of_arrival_station = math.floor(x_point_of_departure_station +
                 (departure_station.distance_from(arrival_station) *
-                 x_scaling_factor))
+                 self.x_scaling_factor))
             # ready for the next iteration
             x_point_of_departure_station = x_point_of_arrival_station
             departure_station = arrival_station
@@ -158,13 +154,18 @@ class TripViewGraphicalClass(TemplateView):
         self.y_scaling_factor = \
             (self.canvas_height - self.GRAPH_BORDER_PADDING_TOP_PX -
              self.GRAPH_BORDER_PADDING_BOTTOM_PX) /\
-            (self.get_max_end_hour_for_trips() + 1 -
-             self.get_min_start_hour_for_trips())
+            (self.max_end_hour_for_trips + 1 -
+             self.min_start_hour_for_trips)
+
+        self.x_scaling_factor = (self.canvas_width -
+                            self.GRAPH_BORDER_PADDING_LEFT_PX -
+                            self.GRAPH_BORDER_PADDING_RIGHT_PX) /\
+                        Trip.objects.get_max_trip_distance(self.trip_list)
 
     def datetime_to_y_point(self, dt):
         # round (down) it as we don't want to do subpixel stuff
         return math.floor(self.GRAPH_BORDER_PADDING_TOP_PX +
-              (dt.hour + dt.minute/60.0 - self.get_min_start_hour_for_trips())
+              (dt.hour + dt.minute/60.0 - self.min_start_hour_for_trips)
               * self.y_scaling_factor)
 
     def are_gaps_above_pixel_resolution(self, list_of_times):
@@ -225,8 +226,8 @@ class TripViewGraphicalClass(TemplateView):
         #  7:15, then the largest hour is 7. This means that in order to get
         #  the correct scaling factor, we need to add 1 to the maxhour because
         # getMaxEndHour + 1 because the range function isn't inclusive
-        for hour in range(self.get_min_start_hour_for_trips(),
-                self.get_max_end_hour_for_trips() + 1):
+        for hour in range(self.min_start_hour_for_trips,
+                self.max_end_hour_for_trips + 1):
             extra_content.extend(self.draw_hour_grid_line(hour, hour))
             extra_content.append("//Hour marker: %s" % (hour,))
             codtoha = self.coords_of_datetime_on_hour_axis(datetime.time(hour))
@@ -375,8 +376,13 @@ class TripViewGraphicalClass(TemplateView):
         self.y_point_of_x_axis = self.GRAPH_BORDER_PADDING_TOP_PX
         self.station_x_axis_point_map = {}
 
-        self.populate_station_point_map()
+        # Fetch end before start to save a query (start slices the qs, but end
+        #  doesn't
+        self.max_end_hour_for_trips = self.get_max_end_hour_for_trips()
+        self.min_start_hour_for_trips = self.get_min_start_hour_for_trips()
+
         self.calculate_scaling_factors()
+        self.populate_station_point_map()
         extra_content_list = self.draw_station_axis()
         extra_content_list.extend(self.draw_trips())
         extra_content_str = "\n".join(extra_content_list)

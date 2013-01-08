@@ -1,6 +1,8 @@
 
 from django.db import models
 
+import logging
+
 
 class TripManager(models.Manager):
     index_on_line_cache = {}
@@ -30,7 +32,7 @@ class TripManager(models.Manager):
         sparse = {}
         for t in trip_list:
             seg = None
-            for seg in t.segment_set.select_related().all():
+            for seg in t.get_segments():
                 if seg.departure_tripstop.station not in sparse:
                     sparse[seg.departure_tripstop.station] = {}
 

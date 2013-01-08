@@ -89,7 +89,9 @@ class Trip(models.Model):
         Segments are loaded in increasing time order, so the implicit ordering
         is actually the ordering that he wanted
         """
-        return self.segment_set.select_related().all()
+        if not hasattr(self, "_segment_cache"):
+            self._segment_cache = self.segment_set.select_related().all()
+        return self._segment_cache
 
     def get_trip_distance(self):
         return sum([segment.segment_length() for segment in self.get_segments()])
@@ -100,7 +102,8 @@ class Trip(models.Model):
 
     def get_end_hour(self):
         # departure time of the arrival tripstop???
-        return self.get_segments()[len(self.get_segments())-1].arrival_tripstop.departure_time.hour
+        segs = self.get_segments()
+        return segs[len(segs)-1].arrival_tripstop.departure_time.hour
 
 
 class TripStop(models.Model):
