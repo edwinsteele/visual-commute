@@ -13,8 +13,8 @@ class HomeClass(TemplateView):
         return self.render_to_response({})
 
 
-class TripViewClass(TemplateView):
-    template_name = "vcapp/trip.html"
+class TripTabularDisplayViewClass(TemplateView):
+    template_name = "vcapp/trip_tabular_display.html"
 
     #@profile("TripViewClass.prof")
     def get(self, request, *args, **kwargs):
@@ -34,8 +34,8 @@ class TripViewClass(TemplateView):
         return self.render_to_response(context)
 
 
-class TripViewGraphicalClass(TemplateView):
-    template_name = "vcapp/trip_graphical.html"
+class TripGraphicalDisplayViewClass(TemplateView):
+    template_name = "vcapp/trip_graphical_display.html"
     MINOR_LINE_MARKER_LEN = 2
     MAJOR_LINE_MARKER_LEN = 4
     TEXT_HEIGHT = 10
@@ -113,17 +113,15 @@ class TripViewGraphicalClass(TemplateView):
         """
         Takes a list of datetime.time elements and returns the smallest gap
          between two consecutive times
-
-        Poorly named. More specific than the name suggests
         """
-        # FIXME - improving naming of this method...
+        if len(dtt_list) == 1:
+            # We only have one trip, so it doesn't make sense to do this
+            return datetime.timedelta.max
+        else:
+            min_trip_delta = datetime.timedelta.max
+
         dtt_list.sort()
         last_time_as_td = None
-        # start with the maximum period of time represented on the graph
-        #  as the minTripDelta - if there is only one trip on the graph then
-        #  the gap calculation should make sense (unlike timedelta.max)
-        min_trip_delta = datetime.timedelta(hours=
-            int(self.to_hour) - int(self.from_hour))
         for dtt in dtt_list:
             this_time_as_td = datetime.timedelta(hours=dtt.hour, minutes=dtt.minute)
             # Ignore if this is the first reading
@@ -168,12 +166,16 @@ class TripViewGraphicalClass(TemplateView):
               (dt.hour + dt.minute/60.0 - self.min_start_hour_for_trips)
               * self.y_scaling_factor)
 
-    def are_gaps_above_pixel_resolution(self, list_of_times):
-        min_gap = self.get_min_timedelta_from_list_of_times(list_of_times)
+    def are_time_gaps_between_trips_above_pixel_resolution(self, trip_endpoint_list):
+        if len(trip_endpoint_list) == 1:
+            # We are only showing one trip, so can show labels
+            return True
+
+        min_gap = self.get_min_timedelta_from_list_of_times(trip_endpoint_list)
         # get a point on the graph to see how many pixels the min gap covers
         example_point_as_dtdt = datetime.datetime.combine(
             datetime.datetime.now(),
-            list_of_times[0])
+            trip_endpoint_list[0])
         min_gap_in_px = self.datetime_to_y_point(
             example_point_as_dtdt + min_gap) - \
             self.datetime_to_y_point(example_point_as_dtdt)
@@ -335,11 +337,15 @@ class TripViewGraphicalClass(TemplateView):
         trip_arrival_times = []
         for trip in self.trip_list:
             trip_segments = trip.get_segments()
-            trip_departure_times.append(trip_segments[0].departure_tripstop.departure_time)
-            trip_arrival_times.append(trip_segments[len(trip_segments)-1].arrival_tripstop.departure_time)
+            trip_departure_times.append(
+                trip_segments[0].departure_tripstop.departure_time)
+            trip_arrival_times.append(
+                trip_segments[len(trip_segments)-1].arrival_tripstop.departure_time)
 
-        draw_start_label = self.are_gaps_above_pixel_resolution(trip_departure_times)
-        draw_end_label = self.are_gaps_above_pixel_resolution(trip_arrival_times)
+        draw_start_label = self.are_time_gaps_between_trips_above_pixel_resolution(
+            trip_departure_times)
+        draw_end_label = self.are_time_gaps_between_trips_above_pixel_resolution(
+            trip_arrival_times)
 
         if not draw_start_label:
             #Draw an axis instead
@@ -362,6 +368,58 @@ class TripViewGraphicalClass(TemplateView):
         else:
             self.trip_list = []
 
+        self.canvas_width = int(request.GET.get("canvas_width"))
+        self.canvas_height = int(request.GET.get("canvas_height"))
+
+        # From TimeVertHTMLDistanceTimeGraph.__init__
+        self.x_point_of_y_axis = self.GRAPH_BORDER_PADDING_LEFT_PX
+        self.y_point_of_x_axis = self.GRAPH_BORDER_PADDING_TOP_PX
+        self.station_x_axis_point_map = {}
+
+        # Fetch end before start to save a query (start slices the qs, but end
+        #  doesn't
+        self.max_end_hour_for_trips = self.get_max_end_hour_for_trips()
+        self.min_start_hour_for_trips = self.get_min_start_hour_for_trips()
+
+        self.calculate_scaling_factors()
+        self.populate_station_point_map()
+        extra_content_list = self.draw_station_axis()
+        extra_content_list.extend(self.draw_trips())
+        extra_content_str = "\n".join(extra_content_list)
+
+        context = {"canvas_width": self.canvas_width,
+                   "canvas_height": self.canvas_height,
+                   "text_height": self.TEXT_HEIGHT,
+                   "abbrev": self.ABBREV,
+                   "extra_content_str": extra_content_str,
+        }
+
+        return self.render_to_response(context)
+
+
+class TripFinderTabularViewClass(TripTabularDisplayViewClass):
+    template_name = "vcapp/trip_tabular_display.html"
+
+    def get(self, request, *args, **kwargs):
+        from_station_id = int(request.GET.get("from_station_id"))
+        from_station = Station.objects.filter(pk=from_station_id)[0]
+        to_station_id = int(request.GET.get("to_station_id"))
+        to_station = Station.objects.filter(pk=to_station_id)[0]
+        self.from_hour = int(request.GET.get("from_hour"))
+        self.to_hour = int(request.GET.get("to_hour"))
+
+        trip_list = []
+
+        matrix = Trip.objects.get_stop_matrix(trip_list)
+        context = {"trip_list": [t.id for t in trip_list],
+                   "sparse": matrix,
+                   }
+        return self.render_to_response(context)
+
+
+class TripFinderGraphicalViewClass(TripGraphicalDisplayViewClass):
+    template_name = "vcapp/trip_finder_graphical_display.html"
+    def get(self, request, *args, **kwargs):
         from_station_id = int(request.GET.get("from_station_id"))
         from_station = Station.objects.filter(pk=from_station_id)[0]
         to_station_id = int(request.GET.get("to_station_id"))
@@ -396,6 +454,6 @@ class TripViewGraphicalClass(TemplateView):
                    "text_height": self.TEXT_HEIGHT,
                    "abbrev": self.ABBREV,
                    "extra_content_str": extra_content_str,
-        }
+                   }
 
         return self.render_to_response(context)

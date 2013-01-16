@@ -3,7 +3,10 @@
 {% block title %}vcapp home{% endblock %}
 {% block content %}
     <ul>
+    <!-- BASE URL for project? -->
     <li><a href="/vcapp/trip/1,4">Text timetable for trip 1 & 4</a></li>
-    <li><a href="/vcapp/trip_graph/1/?from_station_id=253&to_station_id=112&from_hour=12&to_hour=16&canvas_width=320&canvas_height=240">Graphical for trip 1</li>
+    <li><a href="/vcapp/trip_graph/1,4/?canvas_width=640&canvas_height=480">Graphical for trip 1 and 4</li>
+    <li><a href="/vcapp/trip_finder_tabular/?from_station_id=253&to_station_id=112&from_hour=12&to_hour=16">Trip finder from x to y (tabular display)</li>
+    <li><a href="/vcapp/trip_finder_graphical/?from_station_id=253&to_station_id=112&from_hour=12&to_hour=16&canvas_width=320&canvas_height=240">Trip finder from x to y (graphical display)</li>
     </ul>
 {% endblock %}
