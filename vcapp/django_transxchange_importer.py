@@ -90,7 +90,7 @@ def extract_vehicle_journies(parsed_xml):
     vehicle_journey_dict = {}
     start_time = time.time()
     vehicle_journey_count = 0
-    for vj in map(deepcopy, xp_vehicle_journey(parsed_xml)):
+    for vj in [deepcopy(x) for x in xp_vehicle_journey(parsed_xml)]:
         vehicle_journey_id = xp_vehicle_journey_code(vj)[0].text
         journey_pattern_ref_id = xp_journey_pattern_ref(vj)[0].text
         line_ref_id = int(xp_line_ref(vj)[0].text)
@@ -117,12 +117,12 @@ def extract_stations(parsed_xml):
 
     created_station_count = 0
     start_time = time.time()
-    for stop_point in map(deepcopy, xp_stop_point(parsed_xml)):
+    for stop_point in [deepcopy(x) for x in xp_stop_point(parsed_xml)]:
         atco_code = int(xp_atco_code(stop_point)[0].text)
-        stop_name = xp_common_name(stop_point)[0].text
-        lon = float(xp_lon(stop_point)[0].text)
-        lat = float(xp_lat(stop_point)[0].text)
-        station, created = Station.objects.get_or_create(station_name=stop_name, lon=lon, lat=lat)
+        station, created = Station.objects.get_or_create(
+            station_name=xp_common_name(stop_point)[0].text,
+            lon=float(xp_lon(stop_point)[0].text),
+            lat=float(xp_lat(stop_point)[0].text))
         if created:
             created_station_count += 1
 
@@ -147,9 +147,9 @@ def extract_journey_pattern_sections(parsed_xml):
     journey_pattern_section_dict = {}
 
     start_time = time.time()
-    for journey_pattern_section in map(deepcopy, xp_journey_pattern_section(parsed_xml)):
+    for journey_pattern_section in [deepcopy(x) for x in xp_journey_pattern_section(parsed_xml)]:
         journey_pattern_timing_link_list = []
-        for journey_pattern_timing_link in map(deepcopy, xp_journey_pattern_timing_link(journey_pattern_section)):
+        for journey_pattern_timing_link in [deepcopy(x) for x in xp_journey_pattern_timing_link(journey_pattern_section)]:
             from_stop = xp_from_stop_point(journey_pattern_timing_link)[0].text
             to_stop = xp_to_stop_point(journey_pattern_timing_link)[0].text
             # In the format PT[0-9]{1,}M
@@ -236,7 +236,7 @@ def create_trips(parsed_xml, service_list, vehicle_journey_dict, atcocode_statio
     xp_journey_pattern_section_ref = etree.XPath("//T:StandardService//T:JourneyPattern//T:JourneyPatternSectionRefs", namespaces=NSMAP)
     xp_days_of_week = etree.XPath("//T:OperatingProfile//T:RegularDayType//T:DaysOfWeek//T:*", namespaces=NSMAP)
 
-    for s in map(deepcopy, xp_service(parsed_xml)):
+    for s in [deepcopy(x) for x in xp_service(parsed_xml)]:
         service_code = int(xp_service_code(s)[0].text)
         # There are lots of repeated spaces in the service desc
         #service_desc = " ".join(xp_service_desc(s)[0].text.split())

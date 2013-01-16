@@ -9,7 +9,7 @@ The timetable itself is a collection of trips on a single Line (usually)
 
 from django.db import models
 import vcapp.managers
-import geometry
+import vcapp.geometry
 import datetime as dt
 import logging
 
@@ -28,7 +28,7 @@ class Station(models.Model):
 
     # May be better suited to a point in space time class
     def distance_from(self, location):
-        return geometry.line_magnitude(x1=self.lon,
+        return vcapp.geometry.line_magnitude(x1=self.lon,
             y1=self.lat,
             x2=location.lon,
             y2=location.lat)
@@ -56,7 +56,7 @@ class StationLineOrder(models.Model):
     line_index = models.PositiveIntegerField()
 
     def __unicode__(self):
-        return u"StationLineOrder: Station %s with index %s on line %s" %\
+        return u"StationLineOrder: Station %s with index %s on line %s" % \
                (self.station, self.line_index, self.line)
 
 
@@ -80,7 +80,7 @@ class Trip(models.Model):
                     self.get_segments()[0].arrival_tripstop.station,
                     self.line.id)
         else:
-            return u"Trip (id:%s) (no segments), on line %s" %\
+            return u"Trip (id:%s) (no segments), on line %s" % \
                    (self.id,
                     self.line.id)
 
@@ -89,6 +89,8 @@ class Trip(models.Model):
         Segments are loaded in increasing time order, so the implicit ordering
         is actually the ordering that he wanted
         """
+        # FIXME - Don't like defining an attribute here, but can't work out
+        #  how to override the constructor and still preserve correct behaviour
         if not hasattr(self, "_segment_cache"):
             self._segment_cache = self.segment_set.select_related().all()
         return self._segment_cache

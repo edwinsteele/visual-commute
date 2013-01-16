@@ -1,9 +1,6 @@
 
 from django.db import models
 
-import logging
-
-
 class TripManager(models.Manager):
     index_on_line_cache = {}
 
@@ -36,14 +33,14 @@ class TripManager(models.Manager):
                 if seg.departure_tripstop.station not in sparse:
                     sparse[seg.departure_tripstop.station] = {}
 
-                sparse[seg.departure_tripstop.station][seg.trip_id] =\
+                sparse[seg.departure_tripstop.station][seg.trip_id] = \
                     seg.departure_tripstop.departure_time
                 station_set.add(seg.departure_tripstop.station)
             # Append the final arrival station (if there are any segments)
             if seg:
                 if seg.arrival_tripstop.station not in sparse:
                     sparse[seg.arrival_tripstop.station] = {}
-                sparse[seg.arrival_tripstop.station][seg.trip_id] =\
+                sparse[seg.arrival_tripstop.station][seg.trip_id] = \
                     seg.arrival_tripstop.departure_time
                 station_set.add(seg.arrival_tripstop.station)
 

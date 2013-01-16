@@ -25,7 +25,7 @@ class TripViewClass(TemplateView):
             trip_id_list = [int(t) for t in kwargs["trip_id_list"].split(",")]
             trip_list = Trip.objects.filter(id__in=trip_id_list)
         else:
-            trip_list=[]
+            trip_list = []
 
         matrix = Trip.objects.get_stop_matrix(trip_list)
         context = {"trip_list": [t.id for t in trip_list],
@@ -267,9 +267,9 @@ class TripViewGraphicalClass(TemplateView):
         # FIXME - trips may or may not have more than one colour depending
         #  on how many lines make up a trip (or whether a trip can actually
         #  span more than one line
-        if line_id in (1,2):
+        if line_id in (1, 2):
             return "#c5c5c5"
-        elif line_id in (3,4):
+        elif line_id in (3, 4):
             return "#fcb514"
         elif line_id == -1:
             # Interchange
@@ -279,9 +279,9 @@ class TripViewGraphicalClass(TemplateView):
             #return ["red", "orange", "yellow", "green", "blue", "purple"][random.randint(0, 5)]
 
     def get_segment_bullet_colour(self, line_id):
-        if line_id in (1,2):
+        if line_id in (1, 2):
             return "#fcb514"
-        elif line_id in (3,4):
+        elif line_id in (3, 4):
             return "#fcb514"
         elif line_id == -1:
             # Interchange
@@ -360,7 +360,7 @@ class TripViewGraphicalClass(TemplateView):
             trip_id_list = [int(t) for t in kwargs["trip_id_list"].split(",")]
             self.trip_list = Trip.objects.filter(id__in=trip_id_list)
         else:
-            self.trip_list=[]
+            self.trip_list = []
 
         from_station_id = int(request.GET.get("from_station_id"))
         from_station = Station.objects.filter(pk=from_station_id)[0]
