@@ -1,6 +1,7 @@
-{% extends "vcapp/trip_finder_tabular_display.html" %}
+{% extends "vcapp/trip_tabular_display.html" %}
 
 {% block title %}Trip finder tabular{% endblock %}
-{% block leader %}from {{ from_station.station_name }} to {{ to_station.station_name }}
+{% block leader %}
+    from {{ from_station.station_name }} to {{ to_station.station_name }}
     within time range {{ from_hour }} to {{ to_hour }}
     <BR>{% endblock %}

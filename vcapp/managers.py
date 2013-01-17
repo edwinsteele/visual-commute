@@ -57,3 +57,21 @@ class TripManager(models.Manager):
             s2.append([station, dep_time_list])
 
         return s2
+
+    def find_trips_direct(self, from_station, to_station, from_hour, to_hour):
+        # do we need an order-by clause, as we had in the old system?
+        return self.filter(
+            segment__departure_tripstop__station__station_name=from_station.station_name,
+            segment__departure_tripstop__departure_time__gte="%s:00" % from_hour,
+        ).filter(
+            segment__arrival_tripstop__station__station_name=to_station.station_name,
+            segment__arrival_tripstop__departure_time__lt="%s:00" % to_hour,
+        ).extra(
+            # To make sure the trip is in the right direction
+            # This will need to change when we start accepting trips over midnight
+            where=['vcapp_tripstop.departure_time < T6."departure_time"']
+        )
+
+    def find_trips_indirect(self, from_station, to_station, from_hour, to_hour):
+        # dummy
+        return self.filter(pk=1)

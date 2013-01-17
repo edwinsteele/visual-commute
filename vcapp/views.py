@@ -397,28 +397,9 @@ class TripGraphicalDisplayViewClass(TemplateView):
         return self.render_to_response(context)
 
 
-class TripFinderTabularViewClass(TripTabularDisplayViewClass):
-    template_name = "vcapp/trip_tabular_display.html"
-
-    def get(self, request, *args, **kwargs):
-        from_station_id = int(request.GET.get("from_station_id"))
-        from_station = Station.objects.filter(pk=from_station_id)[0]
-        to_station_id = int(request.GET.get("to_station_id"))
-        to_station = Station.objects.filter(pk=to_station_id)[0]
-        self.from_hour = int(request.GET.get("from_hour"))
-        self.to_hour = int(request.GET.get("to_hour"))
-
-        trip_list = []
-
-        matrix = Trip.objects.get_stop_matrix(trip_list)
-        context = {"trip_list": [t.id for t in trip_list],
-                   "sparse": matrix,
-                   }
-        return self.render_to_response(context)
-
-
 class TripFinderGraphicalViewClass(TripGraphicalDisplayViewClass):
     template_name = "vcapp/trip_finder_graphical_display.html"
+
     def get(self, request, *args, **kwargs):
         from_station_id = int(request.GET.get("from_station_id"))
         from_station = Station.objects.filter(pk=from_station_id)[0]
@@ -457,3 +438,38 @@ class TripFinderGraphicalViewClass(TripGraphicalDisplayViewClass):
                    }
 
         return self.render_to_response(context)
+
+
+class TripFinderTabularViewClass(TripTabularDisplayViewClass):
+    template_name = "vcapp/trip_finder_tabular_display.html"
+
+    def get(self, request, *args, **kwargs):
+        from_station_id = int(request.GET.get("from_station_id"))
+        from_station = Station.objects.filter(pk=from_station_id)[0]
+        to_station_id = int(request.GET.get("to_station_id"))
+        to_station = Station.objects.filter(pk=to_station_id)[0]
+        self.from_hour = int(request.GET.get("from_hour"))
+        self.to_hour = int(request.GET.get("to_hour"))
+
+        trip_list = Trip.objects.find_trips_direct(
+            from_station,
+            to_station,
+            self.from_hour,
+            self.to_hour,
+        )
+        # Matrix should probably be the part of the trip that's relevant...
+        if trip_list:
+            matrix = Trip.objects.get_stop_matrix(trip_list)
+        else:
+            matrix = []
+
+        context = {"trip_list": [t.id for t in trip_list],
+                   "from_station": from_station,
+                   "to_station": to_station,
+                   "from_hour": self.from_hour,
+                   "to_hour": self.to_hour,
+                   "sparse": matrix,
+                   }
+        return self.render_to_response(context)
+
+

@@ -7,13 +7,17 @@
     </div>
 
 <table border="1">
-{% for station, dep_time_list in sparse %}
-    <tr>
-        <td>{{ station.station_name }}</td>
-        {% for dep_time in dep_time_list %}
-            <td>{% if dep_time %}{{ dep_time }}{% else %}-{% endif %}</td>
-        {% endfor %}
-    </tr>
-{% endfor %}
+{% if sparse %}
+    {% for station, dep_time_list in sparse %}
+        <tr>
+            <td>{{ station.station_name }}</td>
+            {% for dep_time in dep_time_list %}
+                <td>{% if dep_time %}{{ dep_time }}{% else %}-{% endif %}</td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+{% else %}
+    No trips matched
+{% endif %}
 </table>
 {% endblock %}

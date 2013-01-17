@@ -72,7 +72,6 @@ class TripTestCase(TestCase):
             [21, 17, 12, 21, 22, 27]
         )
 
-
     def test_start_and_end_points(self):
         s = self.a_trip.get_segments()
         self.assertEqual(self.a_trip.get_start_hour(), 13)
@@ -88,6 +87,36 @@ class TripTestCase(TestCase):
 
     def test_trip_distance(self):
         self.assertAlmostEqual(self.a_trip.get_trip_distance(), 0.99622666097)
+
+
+class TestManagerTestCase(TestCase):
+    fixtures = ['populated.json']
+
+    def setUp(self):
+        self.central_station = Station.objects.get(station_name="Central Station")
+        self.parramatta_station = Station.objects.get(station_name="Parramatta Station")
+
+    def test_find_trips_direct(self):
+        trips_found_forward = Trip.objects.find_trips_direct(
+            self.parramatta_station,
+            self.central_station,
+            15,
+            16
+        )
+        self.assertEquals(len(trips_found_forward), 1)
+        self.assertEqual(trips_found_forward[0].id, 1)
+
+        trips_found_reverse = Trip.objects.find_trips_direct(
+            self.central_station,
+            self.parramatta_station,
+            15,
+            16
+        )
+        print trips_found_reverse
+        self.assertEquals(len(trips_found_reverse), 0, "Found trips in the wrong "
+            "direction i.e. departure_time at to_station is before "
+            "departure_time at from_station")
+
 
 class StationTestCase(TestCase):
     fixtures = ['populated.json']
