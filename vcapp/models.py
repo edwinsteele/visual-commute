@@ -73,11 +73,12 @@ class Trip(models.Model):
     objects = vcapp.managers.TripManager()
 
     def __unicode__(self):
-        if self.get_segments():
+        segs = self.get_segments()
+        if segs:
             return u"Trip (id:%s) from %s to %s, on line %s" % \
                    (self.id,
-                    self.get_segments()[0].departure_tripstop.station,
-                    self.get_segments()[0].arrival_tripstop.station,
+                    segs[0].departure_tripstop.station,
+                    segs[len(segs)-1].arrival_tripstop.station,
                     self.line.id)
         else:
             return u"Trip (id:%s) (no segments), on line %s" % \
