@@ -179,7 +179,7 @@ class Segment(models.Model):
             dtdt.combine(dtdt.today(), self.arrival_tripstop.departure_time) - \
             dtdt.combine(dtdt.today(), self.departure_tripstop.departure_time)
         edge_weight = duration_time_delta.seconds/60
-        logging.info("Adding edge from '%s' to '%s' with weight %s",
+        logging.debug("Adding edge from '%s' to '%s' with weight %s",
             self.departure_tripstop.station.short_name(),
             self.arrival_tripstop.station.short_name(),
             edge_weight)

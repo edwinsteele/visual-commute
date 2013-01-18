@@ -27,7 +27,7 @@ class TripTabularDisplayViewClass(TemplateView):
         else:
             trip_list = []
 
-        matrix = Trip.objects.get_stop_matrix(trip_list)
+        matrix = Trip.objects.get_stop_matrix(trip_list, None, None)
         context = {"trip_list": [t.id for t in trip_list],
                    "sparse": matrix,
         }
@@ -61,7 +61,9 @@ class TripGraphicalDisplayViewClass(TemplateView):
         departure_station = None
         x_point_of_departure_station = None
 
-        ordered_station_list = Trip.objects.get_all_stations_in_trips(self.trip_list)
+        # Show whole trips, don't constrain
+        ordered_station_list = Trip.objects.get_all_stations_in_trips(self.trip_list,
+            None, None)
         for arrival_station in ordered_station_list:
             if departure_station is None:
                 # this is the first station we've come across
@@ -92,7 +94,8 @@ class TripGraphicalDisplayViewClass(TemplateView):
         content_list = ["ctx.save();",
             "ctx.textAlign = '%s';" % (self.STATION_AXIS_TEXTALIGN,),
             "ctx.textBaseline = '%s';" % (self.STATION_AXIS_TEXTBASELINE,)]
-        all_stations = Trip.objects.get_all_stations_in_trips(self.trip_list)
+        all_stations = Trip.objects.get_all_stations_in_trips(self.trip_list,
+            None, None)
         # when debugging, we want all stations, otherwise just the start and
         #  the end. work out how to set a debug flag later
         if False:
@@ -459,7 +462,10 @@ class TripFinderTabularViewClass(TripTabularDisplayViewClass):
         )
         # Matrix should probably be the part of the trip that's relevant...
         if trip_list:
-            matrix = Trip.objects.get_stop_matrix(trip_list)
+            matrix = Trip.objects.get_stop_matrix(trip_list,
+                from_station,
+                to_station
+            )
         else:
             matrix = []
 

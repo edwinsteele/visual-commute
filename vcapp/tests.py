@@ -93,8 +93,12 @@ class TestManagerTestCase(TestCase):
     fixtures = ['populated.json']
 
     def setUp(self):
-        self.central_station = Station.objects.get(station_name="Central Station")
-        self.parramatta_station = Station.objects.get(station_name="Parramatta Station")
+        self.central_str = "Central Station"
+        self.parramatta_str = "Parramatta Station"
+        self.springwood_str = "Springwood Station"
+        self.central_station = Station.objects.get(station_name=self.central_str)
+        self.parramatta_station = Station.objects.get(station_name=self.parramatta_str)
+        self.springwood_station = Station.objects.get(station_name=self.springwood_str)
 
     def test_find_trips_direct(self):
         trips_found_forward = Trip.objects.find_trips_direct(
@@ -116,6 +120,40 @@ class TestManagerTestCase(TestCase):
         self.assertEquals(len(trips_found_reverse), 0, "Found trips in the wrong "
             "direction i.e. departure_time at to_station is before "
             "departure_time at from_station")
+
+    def test_get_stop_matrix(self):
+        trip_one = Trip.objects.get(pk=1)
+        matrix_with_to_and_from = Trip.objects.get_stop_matrix(
+            [trip_one],
+            self.springwood_station,
+            self.parramatta_station,
+        )
+
+        self.assertEquals(matrix_with_to_and_from[0][0].station_name,
+            self.springwood_str)
+        self.assertEquals(matrix_with_to_and_from[-1][0].station_name,
+            self.parramatta_str)
+
+        matrix_without_to_and_from = Trip.objects.get_stop_matrix(
+            [trip_one],
+            None,
+            None,
+        )
+        trip_one_segments = trip_one.get_segments()
+        self.assertEquals(matrix_without_to_and_from[0][0],
+            trip_one_segments[0].departure_tripstop.station)
+        self.assertEquals(matrix_without_to_and_from[-1][0],
+            trip_one_segments[len(trip_one_segments)-1].arrival_tripstop.station)
+
+        # Trip 1 goes from Katoomba to Central and Trip 2 goes from Springwood
+        #  to Gordon. The matrix should go from Katoomba to Gordon
+        combined_matrix = Trip.objects.get_stop_matrix(
+            [trip_one, Trip.objects.get(pk=2)],
+            None,
+            None,
+        )
+        self.assertEquals(combined_matrix[0][0].station_name, "Katoomba Station")
+        self.assertEquals(combined_matrix[-1][0].station_name, "Gordon Station")
 
 
 class StationTestCase(TestCase):

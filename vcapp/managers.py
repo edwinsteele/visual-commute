@@ -4,8 +4,8 @@ from django.db import models
 class TripManager(models.Manager):
     index_on_line_cache = {}
 
-    def get_all_stations_in_trips(self, trip_list):
-        matrix = self.get_stop_matrix(trip_list)
+    def get_all_stations_in_trips(self, trip_list, from_station, to_station):
+        matrix = self.get_stop_matrix(trip_list, from_station, to_station)
         ordered_station_list = [station for station, dep_time_list in
                                 matrix]
         return ordered_station_list
@@ -23,21 +23,33 @@ class TripManager(models.Manager):
 
         return self.index_on_line_cache[line_id]
 
-    def get_stop_matrix(self, trip_list):
-        # Create a sparse matrix
+    def get_stop_matrix(self, trip_list, from_station, to_station):
         station_set = set()
         sparse = {}
+        if from_station is None and to_station is None:
+            including_stations_in_matrix = True
+        else:
+            including_stations_in_matrix = False
+
         for t in trip_list:
             seg = None
             for seg in t.get_segments():
-                if seg.departure_tripstop.station not in sparse:
-                    sparse[seg.departure_tripstop.station] = {}
+                if seg.departure_tripstop.station == from_station:
+                    including_stations_in_matrix = True
 
-                sparse[seg.departure_tripstop.station][seg.trip_id] = \
-                    seg.departure_tripstop.departure_time
-                station_set.add(seg.departure_tripstop.station)
+                if including_stations_in_matrix:
+                    if seg.departure_tripstop.station not in sparse:
+                        sparse[seg.departure_tripstop.station] = {}
+
+                    sparse[seg.departure_tripstop.station][seg.trip_id] = \
+                        seg.departure_tripstop.departure_time
+                    station_set.add(seg.departure_tripstop.station)
+
+                if seg.departure_tripstop.station == to_station:
+                    including_stations_in_matrix = False
+
             # Append the final arrival station (if there are any segments)
-            if seg:
+            if seg and including_stations_in_matrix:
                 if seg.arrival_tripstop.station not in sparse:
                     sparse[seg.arrival_tripstop.station] = {}
                 sparse[seg.arrival_tripstop.station][seg.trip_id] = \
