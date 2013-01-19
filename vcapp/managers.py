@@ -1,4 +1,3 @@
-
 from django.db import models
 
 class TripManager(models.Manager):
@@ -61,14 +60,14 @@ class TripManager(models.Manager):
 
 class PartialTripManager(TripManager):
 
-    def find_trips_direct(self, from_station, to_station, from_hour, to_hour):
+    def find_trips_direct(self, from_station, to_station, from_time, to_time):
         # do we need an order-by clause, as we had in the old system?
         trip_list = self.filter(
             segment__departure_tripstop__station__station_name=from_station.station_name,
-            segment__departure_tripstop__departure_time__gte="%s:00" % from_hour,
+            segment__departure_tripstop__departure_time__gte=from_time,
         ).filter(
             segment__arrival_tripstop__station__station_name=to_station.station_name,
-            segment__arrival_tripstop__departure_time__lt="%s:00" % to_hour,
+            segment__arrival_tripstop__departure_time__lt=to_time,
         ).extra(
             # To make sure the trip is in the right direction
             # This will need to change when we start accepting trips over midnight
@@ -98,17 +97,19 @@ class PartialTripManager(TripManager):
             to_station_line_interchange_points)
 
 
-    def find_trips_indirect(self, from_station, to_station, from_hour, to_hour):
+    def find_trips_indirect(self, from_station, to_station, from_time, to_time):
         common_interchange_points = self.get_interchange_points_between_stations(
             from_station, to_station)
 
-        start_to_interchange_trips = {}
+        # Get points from "from station" to interchange point
+        start_to_interchange_trips = []
+        # Hopefully we can do a single query across interchange points... perhaps
         for interchange_point in common_interchange_points:
-            # make an in-memory trip that is based on a trip that exists in the
-            #  db but is constrained between the from and to stations.
-            # Might achieve this filtering/constraint by overriding
-            # Segments.segment_set (a related manager) and putting a filtering
-            # sorta method on that new manager
-            pass
+            for trip in self.find_trips_direct(from_station, to_station,
+                    from_time, to_time):
+                start_to_interchange_trips.append(trip)
+
+
+
 
         return []

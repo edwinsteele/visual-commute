@@ -406,8 +406,8 @@ class TripFinderGraphicalViewClass(TripGraphicalDisplayViewClass):
         from_station = Station.objects.filter(pk=from_station_id)[0]
         to_station_id = int(request.GET.get("to_station_id"))
         to_station = Station.objects.filter(pk=to_station_id)[0]
-        self.from_hour = int(request.GET.get("from_hour"))
-        self.to_hour = int(request.GET.get("to_hour"))
+        self.from_time = datetime.time(hour=int(request.GET.get("from_hour")))
+        self.to_time = datetime.time(hour=int(request.GET.get("to_hour")))
         self.canvas_width = int(request.GET.get("canvas_width"))
         self.canvas_height = int(request.GET.get("canvas_height"))
 
@@ -429,8 +429,8 @@ class TripFinderGraphicalViewClass(TripGraphicalDisplayViewClass):
 
         context = {"from_station": from_station,
                    "to_station": to_station,
-                   "from_hour": self.from_hour,
-                   "to_hour": self.to_hour,
+                   "from_time": self.from_time,
+                   "to_time": self.to_time,
                    "canvas_width": self.canvas_width,
                    "canvas_height": self.canvas_height,
                    "text_height": self.TEXT_HEIGHT,
@@ -449,14 +449,14 @@ class TripFinderTabularViewClass(TripTabularDisplayViewClass):
         from_station = Station.objects.filter(pk=from_station_id)[0]
         to_station_id = int(request.GET.get("to_station_id"))
         to_station = Station.objects.filter(pk=to_station_id)[0]
-        self.from_hour = int(request.GET.get("from_hour"))
-        self.to_hour = int(request.GET.get("to_hour"))
+        self.from_time = datetime.time(hour=int(request.GET.get("from_hour")))
+        self.to_time = datetime.time(hour=int(request.GET.get("to_hour")))
 
         trip_list = PartialTrip.objects.find_trips_direct(
             from_station,
             to_station,
-            self.from_hour,
-            self.to_hour,
+            self.from_time,
+            self.to_time,
         )
         if trip_list:
             matrix = Trip.objects.get_stop_matrix(trip_list)
@@ -465,8 +465,8 @@ class TripFinderTabularViewClass(TripTabularDisplayViewClass):
         context = {"trip_list": [t.id for t in trip_list],
                    "from_station": from_station,
                    "to_station": to_station,
-                   "from_hour": self.from_hour,
-                   "to_hour": self.to_hour,
+                   "from_time": self.from_time,
+                   "to_time": self.to_time,
                    "sparse": matrix,
                    }
         return self.render_to_response(context)

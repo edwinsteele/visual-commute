@@ -3,7 +3,7 @@ from vcapp import django_transxchange_importer
 from vcapp import transxchange_constants
 from vcapp.models import InterchangeStation, Line, PartialTrip, Segment, Station, Trip, TripStop
 
-import os, subprocess
+import datetime, os, subprocess
 
 # TODO - fix logging so that transxchange importer is quiet
 
@@ -104,8 +104,8 @@ class TestManagerTestCase(TestCase):
         trips_found_forward = PartialTrip.objects.find_trips_direct(
             self.parramatta_station,
             self.central_station,
-            15,
-            16
+            datetime.time(hour=15),
+            datetime.time(hour=16)
         )
         self.assertEquals(len(trips_found_forward), 1)
         self.assertEqual(trips_found_forward[0].id, 1)
@@ -113,8 +113,8 @@ class TestManagerTestCase(TestCase):
         trips_found_reverse = PartialTrip.objects.find_trips_direct(
             self.central_station,
             self.parramatta_station,
-            15,
-            16
+            datetime.time(hour=15),
+            datetime.time(hour=16)
         )
         print trips_found_reverse
         self.assertEquals(len(trips_found_reverse), 0, "Found trips in the wrong "
