@@ -1,7 +1,7 @@
 from django.test import TestCase
 from vcapp import django_transxchange_importer
 from vcapp import transxchange_constants
-from vcapp.models import InterchangeStation, Line, Segment, Station, Trip, TripStop
+from vcapp.models import InterchangeStation, Line, PartialTrip, Segment, Station, Trip, TripStop
 
 import os, subprocess
 
@@ -101,7 +101,7 @@ class TestManagerTestCase(TestCase):
         self.springwood_station = Station.objects.get(station_name=self.springwood_str)
 
     def test_find_trips_direct(self):
-        trips_found_forward = Trip.objects.find_trips_direct(
+        trips_found_forward = PartialTrip.objects.find_trips_direct(
             self.parramatta_station,
             self.central_station,
             15,
@@ -110,7 +110,7 @@ class TestManagerTestCase(TestCase):
         self.assertEquals(len(trips_found_forward), 1)
         self.assertEqual(trips_found_forward[0].id, 1)
 
-        trips_found_reverse = Trip.objects.find_trips_direct(
+        trips_found_reverse = PartialTrip.objects.find_trips_direct(
             self.central_station,
             self.parramatta_station,
             15,
@@ -122,23 +122,18 @@ class TestManagerTestCase(TestCase):
             "departure_time at from_station")
 
     def test_get_stop_matrix(self):
-        trip_one = Trip.objects.get(pk=1)
-        matrix_with_to_and_from = Trip.objects.get_stop_matrix(
-            [trip_one],
-            self.springwood_station,
-            self.parramatta_station,
-        )
+        partial_trip_one = PartialTrip.objects.get(pk=1)
+        partial_trip_one.starting_endpoint = self.springwood_station
+        partial_trip_one.finishing_endpoint = self.parramatta_station
+        matrix_with_to_and_from = Trip.objects.get_stop_matrix([partial_trip_one])
 
         self.assertEquals(matrix_with_to_and_from[0][0].station_name,
             self.springwood_str)
         self.assertEquals(matrix_with_to_and_from[-1][0].station_name,
             self.parramatta_str)
 
-        matrix_without_to_and_from = Trip.objects.get_stop_matrix(
-            [trip_one],
-            None,
-            None,
-        )
+        trip_one = Trip.objects.get(pk=1)
+        matrix_without_to_and_from = Trip.objects.get_stop_matrix([trip_one])
         trip_one_segments = trip_one.get_segments()
         self.assertEquals(matrix_without_to_and_from[0][0],
             trip_one_segments[0].departure_tripstop.station)
@@ -148,10 +143,7 @@ class TestManagerTestCase(TestCase):
         # Trip 1 goes from Katoomba to Central and Trip 2 goes from Springwood
         #  to Gordon. The matrix should go from Katoomba to Gordon
         combined_matrix = Trip.objects.get_stop_matrix(
-            [trip_one, Trip.objects.get(pk=2)],
-            None,
-            None,
-        )
+            [trip_one, Trip.objects.get(pk=2)])
         self.assertEquals(combined_matrix[0][0].station_name, "Katoomba Station")
         self.assertEquals(combined_matrix[-1][0].station_name, "Gordon Station")
 

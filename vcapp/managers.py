@@ -4,8 +4,8 @@ from django.db import models
 class TripManager(models.Manager):
     index_on_line_cache = {}
 
-    def get_all_stations_in_trips(self, trip_list, from_station, to_station):
-        matrix = self.get_stop_matrix(trip_list, from_station, to_station)
+    def get_all_stations_in_trips(self, trip_list):
+        matrix = self.get_stop_matrix(trip_list)
         ordered_station_list = [station for station, dep_time_list in
                                 matrix]
         return ordered_station_list
@@ -23,33 +23,22 @@ class TripManager(models.Manager):
 
         return self.index_on_line_cache[line_id]
 
-    def get_stop_matrix(self, trip_list, from_station, to_station):
+    def get_stop_matrix(self, trip_list):
         station_set = set()
         sparse = {}
-        if from_station is None and to_station is None:
-            including_stations_in_matrix = True
-        else:
-            including_stations_in_matrix = False
 
         for t in trip_list:
             seg = None
             for seg in t.get_segments():
-                if seg.departure_tripstop.station == from_station:
-                    including_stations_in_matrix = True
+                if seg.departure_tripstop.station not in sparse:
+                    sparse[seg.departure_tripstop.station] = {}
 
-                if including_stations_in_matrix:
-                    if seg.departure_tripstop.station not in sparse:
-                        sparse[seg.departure_tripstop.station] = {}
-
-                    sparse[seg.departure_tripstop.station][seg.trip_id] = \
-                        seg.departure_tripstop.departure_time
-                    station_set.add(seg.departure_tripstop.station)
-
-                if seg.departure_tripstop.station == to_station:
-                    including_stations_in_matrix = False
+                sparse[seg.departure_tripstop.station][seg.trip_id] = \
+                    seg.departure_tripstop.departure_time
+                station_set.add(seg.departure_tripstop.station)
 
             # Append the final arrival station (if there are any segments)
-            if seg and including_stations_in_matrix:
+            if seg:
                 if seg.arrival_tripstop.station not in sparse:
                     sparse[seg.arrival_tripstop.station] = {}
                 sparse[seg.arrival_tripstop.station][seg.trip_id] = \
@@ -67,12 +56,14 @@ class TripManager(models.Manager):
             for t in trip_list:
                 dep_time_list.append(sparse[station].get(t.id))
             s2.append([station, dep_time_list])
-
         return s2
+
+
+class PartialTripManager(TripManager):
 
     def find_trips_direct(self, from_station, to_station, from_hour, to_hour):
         # do we need an order-by clause, as we had in the old system?
-        return self.filter(
+        trip_list = self.filter(
             segment__departure_tripstop__station__station_name=from_station.station_name,
             segment__departure_tripstop__departure_time__gte="%s:00" % from_hour,
         ).filter(
@@ -83,7 +74,41 @@ class TripManager(models.Manager):
             # This will need to change when we start accepting trips over midnight
             where=['vcapp_tripstop.departure_time < T6."departure_time"']
         )
+        for trip in trip_list:
+            trip.starting_endpoint = from_station
+            trip.finishing_endpoint = to_station
+        return trip_list
+
+    def get_interchange_points_between_stations(self, from_station, to_station):
+        from vcapp.models import StationLineOrder, InterchangeStation
+        lines_containing_from_station = StationLineOrder.objects.filter(
+            station=from_station)
+        lines_containing_to_station = StationLineOrder.objects.filter(
+            station=to_station)
+        from_station_line_interchange_points = set()
+        to_station_line_interchange_points = set()
+        [from_station_line_interchange_points.add(ip)
+            for ip in [InterchangeStation.objects.filter(line=lcfs)
+            for lcfs in lines_containing_from_station]]
+        [to_station_line_interchange_points.add(ip)
+            for ip in [InterchangeStation.objects.filter(line=lcts)
+            for lcts in lines_containing_to_station]]
+
+        return from_station_line_interchange_points.union(
+            to_station_line_interchange_points)
+
 
     def find_trips_indirect(self, from_station, to_station, from_hour, to_hour):
-        # dummy
-        return self.filter(pk=1)
+        common_interchange_points = self.get_interchange_points_between_stations(
+            from_station, to_station)
+
+        start_to_interchange_trips = {}
+        for interchange_point in common_interchange_points:
+            # make an in-memory trip that is based on a trip that exists in the
+            #  db but is constrained between the from and to stations.
+            # Might achieve this filtering/constraint by overriding
+            # Segments.segment_set (a related manager) and putting a filtering
+            # sorta method on that new manager
+            pass
+
+        return []

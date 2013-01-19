@@ -8,6 +8,7 @@ The timetable itself is a collection of trips on a single Line (usually)
 """
 
 from django.db import models
+from django.db.models.signals import post_init
 import vcapp.managers
 import vcapp.geometry
 import datetime as dt
@@ -90,8 +91,10 @@ class Trip(models.Model):
         Segments are loaded in increasing time order, so the implicit ordering
         is actually the ordering that he wanted
         """
-        # FIXME - Don't like defining an attribute here, but can't work out
-        #  how to override the constructor and still preserve correct behaviour
+        # FIXME - use post_init signal to set _segment_cache to None
+        # http://stackoverflow.com/questions/9415616/adding-to-the-constructor-of-a-django-model?lq=1
+        # We use None because we can have an empty segment cache and want them
+        #  to be distinct (so queries that return nothing don't get re-run)
         if not hasattr(self, "_segment_cache"):
             self._segment_cache = self.segment_set.select_related().all()
         return self._segment_cache
@@ -107,6 +110,54 @@ class Trip(models.Model):
         # departure time of the arrival tripstop???
         segs = self.get_segments()
         return segs[len(segs)-1].arrival_tripstop.departure_time.hour
+
+
+class PartialTrip(Trip):
+    """
+    A Trip with defined starting and finishing endpoints. Note that because
+     we can't override the constructor we need to make sure that the endpoints
+     are set as some normal ways of obtaining a PartialTrip can leave these
+     unset. Hence the asserts in the get_segments method.
+    """
+    objects = vcapp.managers.PartialTripManager()
+
+    class Meta:
+        proxy = True
+
+    def __unicode__(self):
+        segs = self.get_segments()
+        if segs:
+            return u"PartialTrip (based on id:%s) from %s to %s, on line %s" %\
+                   (self.id,
+                    segs[0].departure_tripstop.station,
+                    segs[len(segs)-1].arrival_tripstop.station,
+                    self.line.id)
+        else:
+            return u"PartialTrip (based on id:%s) (no segments), on line %s" %\
+                   (self.id,
+                    self.line.id)
+
+    def get_segments(self):
+        filtered_segments = []
+        currently_including_segments = False
+        #noinspection PyUnresolvedReferences
+        assert(self.starting_endpoint is not None)
+        #noinspection PyUnresolvedReferences
+        assert(self.finishing_endpoint is not None)
+        segs = Trip.get_segments(self)
+        for seg in segs:
+            #noinspection PyUnresolvedReferences
+            if seg.departure_tripstop.station == self.starting_endpoint:
+                currently_including_segments = True
+
+            if currently_including_segments:
+                filtered_segments.append(seg)
+
+            #noinspection PyUnresolvedReferences
+            if seg.arrival_tripstop.station == self.finishing_endpoint:
+                currently_including_segments = False
+
+        return filtered_segments
 
 
 class TripStop(models.Model):
@@ -199,3 +250,11 @@ class InterchangeStation(models.Model):
 
     def __unicode__(self):
         return u"Interchange Station %s on line %s" % (self.station, self.line)
+
+
+def set_empty_endpoints_on_trip(sender, *args, **kwargs):
+    instance = kwargs.get('instance')
+    instance.starting_endpoint = None
+    instance.finishing_endpoint = None
+
+post_init.connect(set_empty_endpoints_on_trip, PartialTrip)

@@ -1,5 +1,5 @@
 from django.views.generic.base import TemplateView
-from vcapp.models import Trip, Station
+from vcapp.models import PartialTrip, Trip, Station
 #from profile_decorator import profile
 
 import datetime, logging, math
@@ -27,7 +27,7 @@ class TripTabularDisplayViewClass(TemplateView):
         else:
             trip_list = []
 
-        matrix = Trip.objects.get_stop_matrix(trip_list, None, None)
+        matrix = Trip.objects.get_stop_matrix(trip_list)
         context = {"trip_list": [t.id for t in trip_list],
                    "sparse": matrix,
         }
@@ -61,9 +61,7 @@ class TripGraphicalDisplayViewClass(TemplateView):
         departure_station = None
         x_point_of_departure_station = None
 
-        # Show whole trips, don't constrain
-        ordered_station_list = Trip.objects.get_all_stations_in_trips(self.trip_list,
-            None, None)
+        ordered_station_list = Trip.objects.get_all_stations_in_trips(self.trip_list)
         for arrival_station in ordered_station_list:
             if departure_station is None:
                 # this is the first station we've come across
@@ -94,8 +92,8 @@ class TripGraphicalDisplayViewClass(TemplateView):
         content_list = ["ctx.save();",
             "ctx.textAlign = '%s';" % (self.STATION_AXIS_TEXTALIGN,),
             "ctx.textBaseline = '%s';" % (self.STATION_AXIS_TEXTBASELINE,)]
-        all_stations = Trip.objects.get_all_stations_in_trips(self.trip_list,
-            None, None)
+        all_stations = Trip.objects.get_all_stations_in_trips(self.trip_list)
+
         # when debugging, we want all stations, otherwise just the start and
         #  the end. work out how to set a debug flag later
         if False:
@@ -201,7 +199,7 @@ class TripGraphicalDisplayViewClass(TemplateView):
                     self.datetime_to_y_point(datetime.time(thisHour)))]
 
     def coords_of_datetime_on_hour_axis(self, dt):
-        return (self.x_point_of_y_axis, self.datetime_to_y_point(dt))
+        return self.x_point_of_y_axis, self.datetime_to_y_point(dt)
 
     def draw_sub_hour_markers(self, this_hour):
         extra_content = []
@@ -454,21 +452,16 @@ class TripFinderTabularViewClass(TripTabularDisplayViewClass):
         self.from_hour = int(request.GET.get("from_hour"))
         self.to_hour = int(request.GET.get("to_hour"))
 
-        trip_list = Trip.objects.find_trips_direct(
+        trip_list = PartialTrip.objects.find_trips_direct(
             from_station,
             to_station,
             self.from_hour,
             self.to_hour,
         )
-        # Matrix should probably be the part of the trip that's relevant...
         if trip_list:
-            matrix = Trip.objects.get_stop_matrix(trip_list,
-                from_station,
-                to_station
-            )
+            matrix = Trip.objects.get_stop_matrix(trip_list)
         else:
             matrix = []
-
         context = {"trip_list": [t.id for t in trip_list],
                    "from_station": from_station,
                    "to_station": to_station,
@@ -477,5 +470,4 @@ class TripFinderTabularViewClass(TripTabularDisplayViewClass):
                    "sparse": matrix,
                    }
         return self.render_to_response(context)
-
 
