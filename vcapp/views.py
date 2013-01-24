@@ -452,22 +452,30 @@ class TripFinderTabularViewClass(TripTabularDisplayViewClass):
         self.from_time = datetime.time(hour=int(request.GET.get("from_hour")))
         self.to_time = datetime.time(hour=int(request.GET.get("to_hour")))
 
-        trip_list = PartialTrip.objects.find_trips_direct(
+        direct_trip_list = PartialTrip.objects.find_trips_direct(
             from_station,
             to_station,
             self.from_time,
             self.to_time,
         )
-        if trip_list:
-            matrix = Trip.objects.get_stop_matrix(trip_list)
-        else:
-            matrix = []
-        context = {"trip_list": [t.id for t in trip_list],
-                   "from_station": from_station,
+        indirect_trip_list = PartialTrip.objects.find_trips_indirect(
+            from_station,
+            to_station,
+            self.from_time,
+            self.to_time,
+        )
+        summary_tuple_list = []
+        if direct_trip_list or indirect_trip_list:
+            for trip in direct_trip_list:
+                summary_tuple_list.append(trip.as_summary_tuple())
+            for trip in indirect_trip_list:
+                summary_tuple_list.append(trip.as_summary_tuple())
+
+        context = {"from_station": from_station,
                    "to_station": to_station,
                    "from_time": self.from_time,
                    "to_time": self.to_time,
-                   "sparse": matrix,
+                   "summary_tuple_list": summary_tuple_list,
                    }
         return self.render_to_response(context)
 

@@ -5,3 +5,17 @@
     from {{ from_station.station_name }} to {{ to_station.station_name }}
     within time range {{ from_time }} to {{ to_time }}
     <BR>{% endblock %}
+{% block content %}
+{% for summary_tuple in summary_tuple_list %}
+<h3>Trip</h3>
+<ul>
+    {% for from_station, from_time, action_string, to_station, to_time in summary_tuple %}
+        <li>
+        {{ from_station.station_name }} [{{ from_time }}]
+        {{ action_string }}
+        {{ to_station.station_name }} [{{ to_time }}]
+        </li>
+    {% endfor %}
+</ul>
+{% endfor %}
+{% endblock %}

@@ -47,6 +47,32 @@ def determine_line_id(svc_code, first_stop_name):
 
     return line_id
 
+def create_dummy_interchange_prerequisites():
+    l, created = Line.objects.get_or_create(
+        line_name=transxchange_constants.INTERCHANGE_LINE_NAME)
+    if created:
+        logging.info("Created line %s", l)
+    else:
+        logging.info("Skipping creation of line %s as it already exists")
+    t, created = Trip.objects.get_or_create(timetable_type="WD", line=l)
+    if created:
+        logging.info("Created trip %s", t)
+    else:
+        logging.info("Skipping creation of trip %s as it already exists")
+
+def create_lines():
+    line_count = 0
+    for line_name in transxchange_constants.LINE_NAMES:
+        new_line, created = Line.objects.get_or_create(line_name=line_name)
+        if created:
+            logging.debug("Created line %s", new_line)
+            line_count += 1
+        else:
+            logging.debug("Skipping creation of line %s as it already exists",
+                line_name)
+
+    logging.info("Created %s Lines", line_count)
+
 def create_interchange_stations(interchange_station_map):
     interchange_relationship_count = 0
 
@@ -349,6 +375,8 @@ def populate(transxchange_file, service_list):
     context = etree.parse(transxchange_file)
 
     # Map transxchange atcocode to station object
+    create_dummy_interchange_prerequisites()
+    create_lines()
     a_s_map = extract_stations(context)
     create_interchange_stations(transxchange_constants.INTERCHANGE_STATION_MAP)
     jps_dict = extract_journey_pattern_sections(context)

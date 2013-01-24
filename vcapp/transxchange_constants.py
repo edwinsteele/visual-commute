@@ -25,6 +25,14 @@ HORNSBY_TO_PENRITH_ORIGINS = ("Berowra Station",
                               "Wyong Station",
                               "Lindfield Station")
 
+INTERCHANGE_LINE_NAME="Dummy Interchange Line"
+LINE_NAMES=[
+    "Blue Mountains - Lithgow to Central",
+    "Blue Mountains - Central to Lithgow",
+    "Western Line - Penrif to Hornsby",
+    "Western Line - Hornsby to Penrif",
+]
+
 # List the stations that are on each line
 # TODO: Generate this automatically?
 INTERCHANGE_STATION_MAP = {

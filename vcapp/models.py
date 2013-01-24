@@ -10,6 +10,7 @@ The timetable itself is a collection of trips on a single Line (usually)
 from django.db import models
 from django.db.models.signals import post_init
 import vcapp.managers
+import vcapp.trip_helpers
 import vcapp.geometry
 import datetime as dt
 import logging
@@ -61,7 +62,7 @@ class StationLineOrder(models.Model):
                (self.station, self.line_index, self.line)
 
 
-class Trip(models.Model):
+class Trip(models.Model, vcapp.trip_helpers.AbstractTrip):
     """
     A Trip is a column in a traditional timetable. It is a list of TripStops
     """
@@ -78,8 +79,8 @@ class Trip(models.Model):
         if segs:
             return u"Trip (id:%s) from %s to %s, on line %s" % \
                    (self.id,
-                    segs[0].departure_tripstop.station,
-                    segs[len(segs)-1].arrival_tripstop.station,
+                    self.get_start_station(),
+                    self.get_end_station(),
                     self.line.id)
         else:
             return u"Trip (id:%s) (no segments), on line %s" % \
@@ -99,17 +100,10 @@ class Trip(models.Model):
             self._segment_cache = self.segment_set.select_related().all()
         return self._segment_cache
 
-    def get_trip_distance(self):
-        return sum([segment.segment_length() for segment in self.get_segments()])
-
-    # FIXME - Do we really need these methods to be in hours? why not just datetime.time?
-    def get_start_hour(self):
-        return self.get_segments()[0].departure_tripstop.departure_time.hour
-
-    def get_end_hour(self):
-        # departure time of the arrival tripstop???
-        segs = self.get_segments()
-        return segs[len(segs)-1].arrival_tripstop.departure_time.hour
+    def as_summary_tuple(self):
+        return [(self.get_start_station(), self.get_start_time(),
+                "travel to",
+                self.get_end_station(), self.get_end_time())]
 
 
 class PartialTrip(Trip):
