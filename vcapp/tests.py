@@ -16,6 +16,8 @@ class DjangoTransxchangeImporterTestCase(TestCase):
     def setUpClass(cls):
         # Yuk... but it works until I can make a way to achieve the same end
         #  without forking a new process
+        # We get errors on fixture loading because of
+        # https://code.djangoproject.com/ticket/7078 (but it works anyway)
         django_transxchange_importer.populate(
             os.path.join("data", "505_20090828.xml"),
             transxchange_constants.TEST_SERVICES)
@@ -31,11 +33,11 @@ class DjangoTransxchangeImporterTestCase(TestCase):
         pass
 
     def test_correct_counts(self):
-        self.assertEqual(Line.objects.count(), 4,
+        self.assertEqual(Line.objects.count(), 5,
             "There are %s Lines" % (Line.objects.count(),))
         self.assertEqual(Station.objects.count(), 315,
             "There are %s Stations" % (Station.objects.count(),))
-        self.assertEqual(Trip.objects.count(), 6,
+        self.assertEqual(Trip.objects.count(), 7,
             "There are %s Trips" % (Trip.objects.count(),))
         self.assertEqual(TripStop.objects.count(), 126,
             "There are %s Tripstops" % (TripStop.objects.count(),))
@@ -49,7 +51,7 @@ class TripTestCase(TestCase):
     fixtures = ['populated.json']
 
     def setUp(self):
-        self.a_trip = Trip.objects.get(id=1)
+        self.a_trip = Trip.objects.get(id=2)
 
     def test_segments_are_in_correct_time_order(self):
         for t in Trip.objects.all():
@@ -69,7 +71,7 @@ class TripTestCase(TestCase):
     def test_segment_count_per_trip(self):
         self.assertListEqual(
             [len(t.get_segments()) for t in Trip.objects.all()],
-            [21, 17, 12, 21, 22, 27]
+            [0, 21, 17, 12, 21, 22, 27]
         )
 
     def test_start_and_end_points(self):
@@ -108,7 +110,7 @@ class TestManagerTestCase(TestCase):
             datetime.time(hour=16)
         )
         self.assertEquals(len(trips_found_forward), 1)
-        self.assertEqual(trips_found_forward[0].id, 1)
+        self.assertEqual(trips_found_forward[0].id, 2)
 
         trips_found_reverse = PartialTrip.objects.find_trips_direct(
             self.central_station,
@@ -116,13 +118,12 @@ class TestManagerTestCase(TestCase):
             datetime.time(hour=15),
             datetime.time(hour=16)
         )
-        print trips_found_reverse
         self.assertEquals(len(trips_found_reverse), 0, "Found trips in the wrong "
             "direction i.e. departure_time at to_station is before "
             "departure_time at from_station")
 
     def test_get_stop_matrix(self):
-        partial_trip_one = PartialTrip.objects.get(pk=1)
+        partial_trip_one = PartialTrip.objects.get(pk=2)
         partial_trip_one.starting_endpoint = self.springwood_station
         partial_trip_one.finishing_endpoint = self.parramatta_station
         matrix_with_to_and_from = Trip.objects.get_stop_matrix([partial_trip_one])
@@ -132,7 +133,7 @@ class TestManagerTestCase(TestCase):
         self.assertEquals(matrix_with_to_and_from[-1][0].station_name,
             self.parramatta_str)
 
-        trip_one = Trip.objects.get(pk=1)
+        trip_one = Trip.objects.get(pk=2)
         matrix_without_to_and_from = Trip.objects.get_stop_matrix([trip_one])
         trip_one_segments = trip_one.get_segments()
         self.assertEquals(matrix_without_to_and_from[0][0],
@@ -143,7 +144,7 @@ class TestManagerTestCase(TestCase):
         # Trip 1 goes from Katoomba to Central and Trip 2 goes from Springwood
         #  to Gordon. The matrix should go from Katoomba to Gordon
         combined_matrix = Trip.objects.get_stop_matrix(
-            [trip_one, Trip.objects.get(pk=2)])
+            [trip_one, Trip.objects.get(pk=3)])
         self.assertEquals(combined_matrix[0][0].station_name, "Katoomba Station")
         self.assertEquals(combined_matrix[-1][0].station_name, "Gordon Station")
 
