@@ -2,9 +2,12 @@ from django.views.generic.base import TemplateView
 from vcapp.models import PartialTrip, Trip, Station
 #from profile_decorator import profile
 
-import datetime, logging, math
+import datetime
+import logging
+import math
 
 logger = logging.getLogger(__name__)
+
 
 class HomeClass(TemplateView):
     template_name = "vcapp/home.html"
@@ -30,7 +33,7 @@ class TripTabularDisplayViewClass(TemplateView):
         matrix = Trip.objects.get_stop_matrix(trip_list)
         context = {"trip_list": [t.id for t in trip_list],
                    "sparse": matrix,
-        }
+                   }
         return self.render_to_response(context)
 
 
@@ -61,7 +64,8 @@ class TripGraphicalDisplayViewClass(TemplateView):
         departure_station = None
         x_point_of_departure_station = None
 
-        ordered_station_list = Trip.objects.get_all_stations_in_trips(self.trip_list)
+        ordered_station_list = Trip.objects.get_all_stations_in_trips(
+            self.trip_list)
         for arrival_station in ordered_station_list:
             if departure_station is None:
                 # this is the first station we've come across
@@ -71,7 +75,8 @@ class TripGraphicalDisplayViewClass(TemplateView):
 
             self.station_x_axis_point_map[departure_station] = \
                 x_point_of_departure_station
-            x_point_of_arrival_station = math.floor(x_point_of_departure_station +
+            x_point_of_arrival_station = math.floor(
+                x_point_of_departure_station +
                 (departure_station.distance_from(arrival_station) *
                  self.x_scaling_factor))
             # ready for the next iteration
@@ -90,8 +95,10 @@ class TripGraphicalDisplayViewClass(TemplateView):
 
     def draw_station_axis(self):
         content_list = ["ctx.save();",
-            "ctx.textAlign = '%s';" % (self.STATION_AXIS_TEXTALIGN,),
-            "ctx.textBaseline = '%s';" % (self.STATION_AXIS_TEXTBASELINE,)]
+                        "ctx.textAlign = '%s';" % (
+                            self.STATION_AXIS_TEXTALIGN,),
+                        "ctx.textBaseline = '%s';" % (
+                            self.STATION_AXIS_TEXTBASELINE,)]
         all_stations = Trip.objects.get_all_stations_in_trips(self.trip_list)
 
         # when debugging, we want all stations, otherwise just the start and
@@ -102,13 +109,13 @@ class TripGraphicalDisplayViewClass(TemplateView):
             station_list = (all_stations[0], all_stations[-1])
 
         for station in station_list:
-            content_list.append("//Station marker: %s" % (station.short_name(), ))
+            content_list.append(
+                "//Station marker: %s" % (station.short_name(), ))
             sosac = self.station_on_station_axis_coord(station)
-            content_list.append("ctx.fillText('%s', %s, %s);" % \
-                (station.short_name(), sosac[0], sosac[1]))
+            content_list.append("ctx.fillText('%s', %s, %s);" %
+                                (station.short_name(), sosac[0], sosac[1]))
         content_list.append("ctx.restore();\n")
         return content_list
-
 
     def get_min_timedelta_from_list_of_times(self, dtt_list):
         """
@@ -124,13 +131,15 @@ class TripGraphicalDisplayViewClass(TemplateView):
         dtt_list.sort()
         last_time_as_td = None
         for dtt in dtt_list:
-            this_time_as_td = datetime.timedelta(hours=dtt.hour, minutes=dtt.minute)
+            this_time_as_td = datetime.timedelta(hours=dtt.hour,
+                                                 minutes=dtt.minute)
             # Ignore if this is the first reading
-            # Ignore if it's the same time as the last time as we can have several
-            #  trips starting at the same time (i.e. it isn't a rendering problem)
+            # Ignore if it's the same time as the last time as we can have
+            #  several trips starting at the same time (i.e. it isn't a
+            #  rendering problem)
             if this_time_as_td is not None and \
-                   last_time_as_td is not None and \
-                   this_time_as_td != last_time_as_td:
+                    last_time_as_td is not None and \
+                    this_time_as_td != last_time_as_td:
                 gap = this_time_as_td - last_time_as_td
                 min_trip_delta = min(min_trip_delta, gap)
             last_time_as_td = this_time_as_td
@@ -149,25 +158,34 @@ class TripGraphicalDisplayViewClass(TemplateView):
         # Note that maxHour is the largest hour e.g if the largest time is
         #  7:15, then the largest hour is 7. This means that in order to get
         #  the correct scaling factor, we need to add 1 to the maxhour because
-        #  we need to show up to 59mins past the hour on the x axis
+        #  we need to show up to 59 minutes past the hour on the x axis
         self.y_scaling_factor = \
             (self.canvas_height - self.GRAPH_BORDER_PADDING_TOP_PX -
-             self.GRAPH_BORDER_PADDING_BOTTOM_PX) /\
+             self.GRAPH_BORDER_PADDING_BOTTOM_PX) / \
             (self.max_end_hour_for_trips + 1 -
              self.min_start_hour_for_trips)
 
-        self.x_scaling_factor = (self.canvas_width -
-                            self.GRAPH_BORDER_PADDING_LEFT_PX -
-                            self.GRAPH_BORDER_PADDING_RIGHT_PX) /\
-                        Trip.objects.get_max_trip_distance(self.trip_list)
+        self.x_scaling_factor = (
+            self.canvas_width -
+            self.GRAPH_BORDER_PADDING_LEFT_PX -
+            self.GRAPH_BORDER_PADDING_RIGHT_PX) / \
+            Trip.objects.get_max_trip_distance(self.trip_list)
 
     def datetime_to_y_point(self, dt):
         # round (down) it as we don't want to do subpixel stuff
-        return math.floor(self.GRAPH_BORDER_PADDING_TOP_PX +
-              (dt.hour + dt.minute/60.0 - self.min_start_hour_for_trips)
-              * self.y_scaling_factor)
+        return math.floor(
+            self.GRAPH_BORDER_PADDING_TOP_PX +
+            (dt.hour + dt.minute / 60.0 - self.min_start_hour_for_trips)
+            * self.y_scaling_factor)
 
-    def are_time_gaps_between_trips_above_pixel_resolution(self, trip_endpoint_list):
+    def are_time_gaps_gt_pixel_resolution(self, trip_endpoint_list):
+        """
+        Are time gaps between trips above pixel resolution?
+
+        Canvas has a pixel resolution and sometimes we need to know whether
+        it makes sense to draw something based on whether the display will
+        actually render what is drawn.
+        """
         if len(trip_endpoint_list) == 1:
             # We are only showing one trip, so can show labels
             return True
@@ -183,20 +201,20 @@ class TripGraphicalDisplayViewClass(TemplateView):
         # Text height +1 pixel between means the times would be readable
         if min_gap_in_px < (self.TEXT_HEIGHT + 1):
             logging.debug("times are too small to show (%s px/ %s)."
-                "Use hour axis on the left", min_gap_in_px, min_gap)
+                          "Use hour axis on the left", min_gap_in_px, min_gap)
             return False
         else:
             logging.debug("times are spaced well (%s px/ %s)."
-                "Use labels on the left" , min_gap_in_px, min_gap)
+                          "Use labels on the left", min_gap_in_px, min_gap)
             return True
 
     def draw_hour_grid_line(self, hourLabel, thisHour):
         return ["//Grid line at %s" % (hourLabel,),
                 "drawHourGridLineJS(ctx, %s, %s, %s, %s);" %
-                   (self.x_point_of_y_axis,
-                    self.datetime_to_y_point(datetime.time(thisHour)),
-                    self.canvas_width - self.GRAPH_BORDER_PADDING_RIGHT_PX,
-                    self.datetime_to_y_point(datetime.time(thisHour)))]
+                (self.x_point_of_y_axis,
+                 self.datetime_to_y_point(datetime.time(thisHour)),
+                 self.canvas_width - self.GRAPH_BORDER_PADDING_RIGHT_PX,
+                 self.datetime_to_y_point(datetime.time(thisHour)))]
 
     def coords_of_datetime_on_hour_axis(self, dt):
         return self.x_point_of_y_axis, self.datetime_to_y_point(dt)
@@ -208,42 +226,48 @@ class TripGraphicalDisplayViewClass(TemplateView):
             extra_content.append("ctx.beginPath();")
             # We use TEXT_HEIGHT/2 because we want the dot to be aligned with
             #  the middle of the hour label
-            extra_content.append("ctx.moveTo(%s,%s);" % \
-               (self.x_point_of_y_axis - (self.TEXT_HEIGHT/2),
-                self.datetime_to_y_point(datetime.time(this_hour, minute))))
-            extra_content.append("ctx.lineTo(%s,%s);" % \
-               (self.x_point_of_y_axis - (self.TEXT_HEIGHT/2) -
-                self.MINOR_LINE_MARKER_LEN,
-                self.datetime_to_y_point(datetime.time(this_hour, minute))))
+            extra_content.append("ctx.moveTo(%s,%s);" %
+                                 (self.x_point_of_y_axis - (
+                                     self.TEXT_HEIGHT / 2),
+                                  self.datetime_to_y_point(
+                                      datetime.time(this_hour, minute))))
+            extra_content.append("ctx.lineTo(%s,%s);" %
+                                 (self.x_point_of_y_axis - (
+                                     self.TEXT_HEIGHT / 2) -
+                                  self.MINOR_LINE_MARKER_LEN,
+                                  self.datetime_to_y_point(
+                                      datetime.time(this_hour, minute))))
             extra_content.append("ctx.stroke();")
         return extra_content
 
     def draw_hour_axis(self):
-        #  we need to show up to 59mins past the hour on the x axis
+        #  we need to show up to 59 minutes past the hour on the x axis
         hour = None
         extra_content = ["ctx.save();",
-            "ctx.textAlign = '%s';" % (self.HOUR_AXIS_TEXTALIGN,),
-            "ctx.textBaseline = '%s';" % (self.HOUR_AXIS_TEXTBASELINE,)]
+                         "ctx.textAlign = '%s';" % (self.HOUR_AXIS_TEXTALIGN,),
+                         "ctx.textBaseline = '%s';" % (
+                             self.HOUR_AXIS_TEXTBASELINE,)]
 
         # Note that getMaxEndHour is the largest hour e.g if the largest time is
         #  7:15, then the largest hour is 7. This means that in order to get
         #  the correct scaling factor, we need to add 1 to the maxhour because
         # getMaxEndHour + 1 because the range function isn't inclusive
         for hour in range(self.min_start_hour_for_trips,
-                self.max_end_hour_for_trips + 1):
+                          self.max_end_hour_for_trips + 1):
             extra_content.extend(self.draw_hour_grid_line(hour, hour))
             extra_content.append("//Hour marker: %s" % (hour,))
             codtoha = self.coords_of_datetime_on_hour_axis(datetime.time(hour))
-            extra_content.append("ctx.fillText('%s', %s, %s);" % \
+            extra_content.append("ctx.fillText('%s', %s, %s);" %
                                  (hour, codtoha[0], codtoha[1]))
             extra_content.extend(self.draw_sub_hour_markers(hour))
 
         if hour is not None:
             extra_content.extend(self.draw_hour_grid_line(hour + 1, hour + 1))
             extra_content.append("//Hour marker: %s" % (hour + 1,))
-            codtoha = self.coords_of_datetime_on_hour_axis(datetime.time(hour + 1))
-            extra_content.append("ctx.fillText('%s', %s, %s);" % \
-                                (hour + 1, codtoha[0], codtoha[1]))
+            codtoha = self.coords_of_datetime_on_hour_axis(
+                datetime.time(hour + 1))
+            extra_content.append("ctx.fillText('%s', %s, %s);" %
+                                 (hour + 1, codtoha[0], codtoha[1]))
 
         extra_content.append("ctx.restore();")
         return extra_content
@@ -256,13 +280,13 @@ class TripGraphicalDisplayViewClass(TemplateView):
                          "ctx.textBaseline = '%s';" % (textBaseline,)]
         label_x_point = self.station_to_x_point(tripstop.station)
         label_y_point = self.datetime_to_y_point(tripstop.departure_time)
-        extra_content.append("//%s label: %s" %\
-             (label_type,
-              tripstop.departure_time.strftime("%H.%M"), ))
-        extra_content.append("ctx.fillText('%s ', %s, %s);" %\
-             (tripstop.departure_time.strftime("%H.%M"),
-              label_x_point,
-              label_y_point))
+        extra_content.append("//%s label: %s" %
+                             (label_type,
+                              tripstop.departure_time.strftime("%H.%M"), ))
+        extra_content.append("ctx.fillText('%s ', %s, %s);" %
+                             (tripstop.departure_time.strftime("%H.%M"),
+                              label_x_point,
+                              label_y_point))
         extra_content.append("ctx.restore();")
         return extra_content
 
@@ -279,7 +303,6 @@ class TripGraphicalDisplayViewClass(TemplateView):
             return "black"
         else:
             return "red"
-            #return ["red", "orange", "yellow", "green", "blue", "purple"][random.randint(0, 5)]
 
     def get_segment_bullet_colour(self, line_id):
         if line_id in (1, 2):
@@ -298,41 +321,45 @@ class TripGraphicalDisplayViewClass(TemplateView):
         #  departure station and the last arrival station twice. meh.
         dts = segment.departure_tripstop
         ats = segment.arrival_tripstop
-        extra_content = ["//Segment: %s (%s) to %s (%s)" % \
-                   (dts.station.short_name(),
-                    dts.departure_time,
-                    ats.station.short_name(),
-                    ats.departure_time)]
+        extra_content = ["//Segment: %s (%s) to %s (%s)" %
+                         (dts.station.short_name(),
+                          dts.departure_time,
+                          ats.station.short_name(),
+                          ats.departure_time)]
         departure_x_point = self.station_to_x_point(dts.station)
         arrival_x_point = self.station_to_x_point(ats.station)
         departure_y_point = self.datetime_to_y_point(dts.departure_time)
         arrival_y_point = self.datetime_to_y_point(ats.departure_time)
-        extra_content.append("drawSegmentJS(ctx, %s, %s, %s, %s, '%s', '%s');" %\
-                   (departure_x_point, departure_y_point,
-                    arrival_x_point, arrival_y_point,
-                    self.get_segment_line_colour(segment.trip.line_id),
-                    self.get_segment_bullet_colour(segment.trip.line_id)))
+        extra_content.append("drawSegmentJS(ctx, %s, %s, %s, %s, '%s', '%s');" %
+                             (departure_x_point, departure_y_point,
+                              arrival_x_point, arrival_y_point,
+                              self.get_segment_line_colour(
+                                  segment.trip.line_id),
+                              self.get_segment_bullet_colour(
+                                  segment.trip.line_id)))
         return extra_content
 
     def draw_trip(self, trip_to_draw, draw_start_label, draw_end_label):
         extra_content = []
         segments = trip_to_draw.get_segments()
         trip_departure_tripstop = segments[0].departure_tripstop
-        trip_arrival_tripstop = segments[len(segments)-1].arrival_tripstop
+        trip_arrival_tripstop = segments[len(segments) - 1].arrival_tripstop
 
         if draw_start_label:
-            extra_content.extend(self.draw_time_label(trip_departure_tripstop, "START"))
+            extra_content.extend(
+                self.draw_time_label(trip_departure_tripstop, "START"))
 
         for segment in segments:
             extra_content.extend(self.draw_segment(segment))
 
         if draw_end_label:
-            extra_content.extend(self.draw_time_label(trip_arrival_tripstop, "END"))
+            extra_content.extend(
+                self.draw_time_label(trip_arrival_tripstop, "END"))
 
         return extra_content
 
     def draw_trips(self):
-#        allTrips = self.tm.getTrips()
+    #        allTrips = self.tm.getTrips()
         extra_content = []
         trip_departure_times = []
         trip_arrival_times = []
@@ -341,11 +368,12 @@ class TripGraphicalDisplayViewClass(TemplateView):
             trip_departure_times.append(
                 trip_segments[0].departure_tripstop.departure_time)
             trip_arrival_times.append(
-                trip_segments[len(trip_segments)-1].arrival_tripstop.departure_time)
+                trip_segments[
+                    len(trip_segments) - 1].arrival_tripstop.departure_time)
 
-        draw_start_label = self.are_time_gaps_between_trips_above_pixel_resolution(
+        draw_start_label = self.are_time_gaps_gt_pixel_resolution(
             trip_departure_times)
-        draw_end_label = self.are_time_gaps_between_trips_above_pixel_resolution(
+        draw_end_label = self.are_time_gaps_gt_pixel_resolution(
             trip_arrival_times)
 
         if not draw_start_label:
@@ -393,7 +421,7 @@ class TripGraphicalDisplayViewClass(TemplateView):
                    "text_height": self.TEXT_HEIGHT,
                    "abbrev": self.ABBREV,
                    "extra_content_str": extra_content_str,
-        }
+                   }
 
         return self.render_to_response(context)
 
@@ -478,4 +506,3 @@ class TripFinderTabularViewClass(TripTabularDisplayViewClass):
                    "summary_tuple_list": summary_tuple_list,
                    }
         return self.render_to_response(context)
-

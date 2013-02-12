@@ -7,10 +7,11 @@ MULTI_TRIP_TRIP_ID = -1
 INTERCHANGE_TRIP_LINE_ID = -2
 INTERCHANGE_TRIP_TRIP_ID = -2
 
+
 class AbstractTrip(object):
     """
-    Need to make this an old-skool abstract class/mixin as it seems one can't mix
-    abc Abstract classes with Django using subclassing and the registration
+    Need to make this an old-skool abstract class/mixin as it seems one can't
+    mix abc Abstract classes with Django using subclassing and the registration
     method for abc doesn't give registered classes available to the concrete
     method implementations that I want to share
     """
@@ -28,7 +29,8 @@ class AbstractTrip(object):
         raise NotImplementedError
 
     def get_trip_distance(self):
-        return sum([segment.segment_length() for segment in self.get_segments()])
+        return sum([segment.segment_length()
+                    for segment in self.get_segments()])
 
     def get_first_tripstop(self):
         return self.get_segments()[0].departure_tripstop
@@ -44,7 +46,7 @@ class AbstractTrip(object):
 
     def get_last_tripstop(self):
         segs = self.get_segments()
-        return segs[len(segs)-1].arrival_tripstop
+        return segs[len(segs) - 1].arrival_tripstop
 
     def get_end_station(self):
         return self.get_last_tripstop().station
@@ -88,9 +90,9 @@ class InterchangeTrip(AbstractTrip):
         self.line_id = self.line.id
         self.timetable_type = None
         self._segment = Segment(departure_tripstop=from_tripstop,
-            arrival_tripstop=to_tripstop,
-            trip=Trip.objects.get(line=self.line)
-            )
+                                arrival_tripstop=to_tripstop,
+                                trip=Trip.objects.get(line=self.line)
+                                )
 
     def get_segments(self):
         return [self._segment]
@@ -99,4 +101,3 @@ class InterchangeTrip(AbstractTrip):
         return [(self.get_start_station(), self.get_start_time(),
                 "change to",
                 self.get_end_station(), self.get_end_time())]
-

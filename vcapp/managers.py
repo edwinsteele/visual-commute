@@ -1,7 +1,8 @@
 
-import logging, datetime
+import datetime
 from django.db import models
-from .trip_helpers import  MultiTrip, InterchangeTrip
+from .trip_helpers import MultiTrip, InterchangeTrip
+
 
 class TripManager(models.Manager):
     MIN_TIME_AT_INTERCHANGE = datetime.timedelta(minutes=2)
@@ -20,7 +21,8 @@ class TripManager(models.Manager):
         if line_id not in self.index_on_line_cache:
             from vcapp.models import StationLineOrder
             d = {}
-            for slo in StationLineOrder.objects.select_related().filter(line=line_id):
+            for slo in StationLineOrder.objects.select_related().\
+                    filter(line=line_id):
                 d[slo.station] = slo.line_index
             self.index_on_line_cache[line_id] = d
 
@@ -66,14 +68,17 @@ class PartialTripManager(TripManager):
     def find_trips_direct(self, from_station, to_station, from_time, to_time):
         # do we need an order-by clause, as we had in the old system?
         trip_list = self.filter(
-            segment__departure_tripstop__station__station_name=from_station.station_name,
+            segment__departure_tripstop__station__station_name=
+            from_station.station_name,
             segment__departure_tripstop__departure_time__gte=from_time,
         ).filter(
-            segment__arrival_tripstop__station__station_name=to_station.station_name,
+            segment__arrival_tripstop__station__station_name=
+            to_station.station_name,
             segment__arrival_tripstop__departure_time__lt=to_time,
         ).extra(
             # To make sure the trip is in the right direction
-            # This will need to change when we start accepting trips over midnight
+            # This will need to change when we start accepting trips over
+            #  midnight
             where=['vcapp_tripstop.departure_time < T6."departure_time"']
         )
         for trip in trip_list:
@@ -83,10 +88,14 @@ class PartialTripManager(TripManager):
 
     def get_interchange_points_between_stations(self, from_station, to_station):
         from vcapp.models import StationLineOrder, InterchangeStation
-        lines_containing_from_station = [slo.line for slo in
-            StationLineOrder.objects.filter(station=from_station)]
-        lines_containing_to_station = [slo.line for slo in
-            StationLineOrder.objects.filter(station=to_station)]
+        lines_containing_from_station = [
+            slo.line for slo in
+            StationLineOrder.objects.filter(station=from_station)
+        ]
+        lines_containing_to_station = [
+            slo.line for slo in
+            StationLineOrder.objects.filter(station=to_station)
+        ]
         from_station_line_interchange_stations = set()
         to_station_line_interchange_stations = set()
         for line_containing_from_station in lines_containing_from_station:
@@ -106,26 +115,28 @@ class PartialTripManager(TripManager):
         return from_station_line_interchange_stations.union(
             to_station_line_interchange_stations)
 
-
     def find_trips_indirect(self, from_station, to_station, from_time, to_time):
         indirect_trips = []
 
-        common_interchange_points = self.get_interchange_points_between_stations(
-            from_station, to_station)
+        common_interchange_points = \
+            self.get_interchange_points_between_stations(
+                from_station, to_station
+            )
 #        logging.debug("CIPs are %s", common_interchange_points)
         # Get points from "from station" to interchange point
         start_to_interchange_trips = []
-        # Hopefully we can do a single query across interchange points... perhaps
+        # Hopefully we can do a single query across interchange points.. perhaps
         for interchange_point in common_interchange_points:
 #            logging.debug("Interchange point is %s", interchange_point)
             for start_to_interchange_trip in self.find_trips_direct(
-                    from_station, interchange_point.station, from_time, to_time):
+                    from_station,
+                    interchange_point.station,
+                    from_time, to_time):
                 start_to_interchange_trips.append(start_to_interchange_trip)
 
         # find trips from interchange points to the endpoint that leave the
         #  interchange station no less than 2 minutes (say) after the train
         #  arrives at the interchange point
-        interchange_to_end_trips = []
         for start_to_interchange_trip in start_to_interchange_trips:
             earliest_interchange_departure_time = datetime.datetime.combine(
                 datetime.date.today(),
@@ -145,20 +156,16 @@ class PartialTripManager(TripManager):
                 m.add_trip(InterchangeTrip(
                     start_to_interchange_trip.get_last_tripstop(),
                     interchange_to_end_trip.get_first_tripstop()
-                    ))
+                ))
                 m.add_trip(interchange_to_end_trip)
                 indirect_trips.append(m)
-
 
         # to reduce the amount of options, we should return the best "n" trips
         #  where best is defined as one of two specified criteria:
         # * arrives first
         # * has the shortest trip duration
 
-
         # to reduce the amount of lookups and objects that are constructed we
         #  cou;ld make the algo iterative, running n times and only continuing
         #  to consider more stations if we get a better result?
-
-
         return indirect_trips
